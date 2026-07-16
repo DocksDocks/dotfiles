@@ -10,6 +10,7 @@ files, session history, caches, logs, and machine-specific state remain local.
 
 | Directory | Purpose |
 | --- | --- |
+| [`.githooks/`](.githooks/) | Version-controlled safeguards for staged commits |
 | [`omp/`](omp/) | Oh My Pi configuration, model-routing rationale, installation, and sources |
 
 ## Install
@@ -26,6 +27,12 @@ Install only one configuration:
 
 ```bash
 ./install.sh omp
+```
+
+Enable only the repository safeguards:
+
+```bash
+./install.sh hooks
 ```
 
 The installer copies explicitly listed files rather than linking or copying
@@ -45,6 +52,23 @@ Tracked files must never contain:
 Authentication is performed separately on each machine after configuration is
 installed. See each tool directory for its public configuration rationale; local
 authentication procedures and account details are intentionally outside this
+repository.
+
+The installer sets this clone's `core.hooksPath` to `.githooks`. Its pre-commit
+hook scans the exact staged blobs and rejects:
+
+- sensitive filenames and runtime directories;
+- private-key blocks and common provider token formats;
+- assigned passwords, secrets, keys, and authentication tokens;
+- credentials embedded in URLs;
+- email addresses and absolute user-home paths;
+- binary files and Git submodules, which require deliberate review before this
+  allowlisted repository can support them.
+
+The hook never prints the detected value. It reports only the category and file
+path. It is a local guard, while GitHub secret scanning and push protection
+provide an independent remote guard. Like every client-side pre-commit hook, Git
+can bypass it with `--no-verify`; do not use that option to publish this
 repository.
 
 Before committing:

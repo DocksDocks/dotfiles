@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+export LC_ALL=C
+
+failures=0
+linux_home_root="/home"
+macos_home_root="/Users"
+windows_home_root='[A-Za-z]:\\Users'
+
+report_failure() {
+  local reason="$1"
+  local path="$2"
+
+  printf 'pre-commit: blocked %s: %s\n' "$reason" "$path" >&2
+  failures=1
+}
+
+is_sensitive_path() {
+  local path="${1,,}"
+  local basename="${path##*/}"
+
+  case "/$path/" in
+    */.ssh/*|*/.aws/*|*/.azure/*|*/.gnupg/*|*/.kube/*)
+      return 0
+      ;;
+    */sessions/*|*/session/*|*/artifacts/*|*/cache/*|*/logs/*|*/plugins/*)
+      return 0
+      ;;
+    */.omp/*|*/.codex/*|*/.claude/*)
+      return 0
+      ;;
+  esac
+
+  case "$basename" in
+    .env.example)
+      return 1
+      ;;
+    .env|.env.*|.envrc|*.local|*.private)
+      return 0
+      ;;
+    *.key|*.pem|*.p12|*.pfx|*.jks|*.keystore|*.age)
+      return 0
+      ;;
+    .netrc|.npmrc|.pypirc|credentials*|auth*.json|secrets.yml)
+      return 0
+      ;;
+    id_rsa|id_dsa|id_ecdsa|id_ed25519)
+      return 0
+      ;;
+    agent.db|agent.db-*|*.db|*.db-wal|*.db-shm|*.sqlite|*.sqlite3)
+      return 0
+      ;;
+    .bash_history|.zsh_history|*.history)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+pattern_names=(
+  "a private-key block"
+  "an AWS access-key identifier"
+  "a GitHub token"
+  "an OpenAI-style API token"
+  "an Anthropic API token"
+  "a common service token"
+  "an assigned credential value"
+  "credentials embedded in a URL"
+  "an email address"
+  "an absolute user-home path"
+)
+
+patterns=(
+  '-----BEGIN [A-Z0-9 ]{0,32}PRIVATE KEY-----'
+  '(AKIA|ASIA)[0-9A-Z]{16}'
+  '(gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})'
+  'sk-(proj-)?[A-Za-z0-9_-]{20,}'
+  'sk-ant-[A-Za-z0-9_-]{20,}'
+  '(xox[baprs]-[A-Za-z0-9-]{10,}|glpat-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{20,}|npm_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{30,})'
+  '(api[_-]?key|access[_-]?token|auth[_-]?token|oauth[_-]?token|client[_-]?secret|password|passwd|secret)[[:space:]]*[:=][[:space:]]*['\''"]?[A-Za-z0-9_./+=-]{8,}'
+  'https?://[^/[:space:]@]+:[^/[:space:]@]+@'
+  '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
+  "(${linux_home_root}/[^/\"'[:space:]]+|${macos_home_root}/[^/\"'[:space:]]+|${windows_home_root}\\\\[^\\\\[:space:]]+)"
+)
+
+while IFS= read -r -d '' path; do
+  if is_sensitive_path "$path"; then
+    report_failure "sensitive filename or runtime path" "$path"
+    continue
+  fi
+
+  mode="$(git ls-files --stage -- "$path" | awk 'NR == 1 { print $1 }')"
+  if [[ "$mode" == "160000" ]]; then
+    report_failure "a submodule in this allowlisted repository" "$path"
+    continue
+  fi
+
+  IFS=$'\t' read -r added deleted _ < <(
+    git diff --cached --numstat -- "$path"
+  )
+  if [[ "${added:-}" == "-" && "${deleted:-}" == "-" ]]; then
+    report_failure "a binary file" "$path"
+    continue
+  fi
+
+  for index in "${!patterns[@]}"; do
+    if git show ":$path" | grep -Eiq -- "${patterns[$index]}"; then
+      report_failure "${pattern_names[$index]}" "$path"
+    fi
+  done
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if (( failures != 0 )); then
+  printf '%s\n' \
+    "pre-commit: commit rejected; remove the sensitive data and stage the safe file." \
+    "pre-commit: review with 'git diff --cached' before trying again." >&2
+  exit 1
+fi

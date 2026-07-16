@@ -18,6 +18,16 @@ backup_if_changed() {
   printf 'Backed up %s\n' "$target_file"
 }
 
+install_git_hooks() {
+  if ! git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    printf 'Cannot install hooks: %s is not a Git working tree\n' "$repo_root" >&2
+    exit 1
+  fi
+
+  git -C "$repo_root" config --local core.hooksPath .githooks
+  printf 'Enabled repository hooks from %s/.githooks\n' "$repo_root"
+}
+
 install_omp() {
   local source_file="$repo_root/omp/config.yml"
   local target_dir="$HOME/.omp/agent"
@@ -30,12 +40,16 @@ install_omp() {
 }
 
 usage() {
-  printf 'Usage: %s [all|omp]\n' "${0##*/}"
+  printf 'Usage: %s [all|hooks|omp]\n' "${0##*/}"
 }
 
 case "${1:-all}" in
   all)
+    install_git_hooks
     install_omp
+    ;;
+  hooks)
+    install_git_hooks
     ;;
   omp)
     install_omp
