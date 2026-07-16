@@ -11,7 +11,7 @@ files, session history, caches, logs, and machine-specific state remain local.
 | Directory | Purpose |
 | --- | --- |
 | [`.githooks/`](.githooks/) | Version-controlled safeguards for staged commits |
-| [`omp/`](omp/) | Oh My Pi configuration, model-routing rationale, installation, and sources |
+| [`omp/`](omp/) | Oh My Pi settings and MCP policy, model-routing rationale, installation, and sources |
 
 ## Install
 
@@ -36,8 +36,9 @@ Enable only the repository safeguards:
 ```
 
 The installer copies explicitly listed files rather than linking or copying
-entire application directories. Existing managed files are backed up before
-replacement when their contents differ.
+entire application directories. For OMP, it installs the tracked settings and
+MCP denylist. Existing managed files are backed up before replacement when
+their contents differ.
 
 ## Security model
 

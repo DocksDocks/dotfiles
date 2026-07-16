@@ -93,4 +93,4 @@ codexResets:
 startup:
   quiet: true
 tools:
-  approvalMode: write
+  approvalMode: yolo

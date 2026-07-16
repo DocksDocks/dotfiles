@@ -48,14 +48,16 @@ omp --smoke-test
 For ARM64 Linux, replace `omp-linux-x64` with `omp-linux-arm64`. Ensure
 `$HOME/.local/bin` is on `PATH`.
 
-From the dotfiles repository root, install the tracked configuration with:
+From the dotfiles repository root, install the tracked settings and MCP policy
+with:
 
 ```bash
 ./install.sh omp
 ```
 
-The installer copies `omp/config.yml` to `~/.omp/agent/config.yml` with mode
-`0600` and backs up a differing existing file. Local runtime files such as
+The installer copies `omp/config.yml` and `omp/mcp.json` to
+`~/.omp/agent/config.yml` and `~/.omp/agent/mcp.json`, respectively, with mode
+`0600`, and backs up either differing existing file. Local runtime files such as
 `.env`, `agent.db`, `secrets.yml`, sessions, logs, and caches must not be copied
 into the repository.
 
@@ -229,6 +231,18 @@ context work while the session is not actively streaming.
 Source:
 
 - [OMP compaction and snapcompact behavior](https://github.com/can1357/oh-my-pi/blob/v17.0.1/docs/compaction.md)
+
+## Intent: no approval prompts and explicit MCP exclusions
+
+```yaml
+tools:
+  approvalMode: yolo
+```
+
+`yolo` allows tool calls without approval prompts. The separately tracked
+`mcp.json` disables `chrome-devtools`, `context7:context7`, and
+`openaiDeveloperDocs`; OMP must not load those MCP servers even when discovery
+finds them. Other discovered MCP servers remain eligible.
 
 ## Intent: controlled diagnostics and irreversible actions
 

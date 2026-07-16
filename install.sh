@@ -29,14 +29,18 @@ install_git_hooks() {
 }
 
 install_omp() {
-  local source_file="$repo_root/omp/config.yml"
+  local config_source="$repo_root/omp/config.yml"
+  local mcp_source="$repo_root/omp/mcp.json"
   local target_dir="$HOME/.omp/agent"
-  local target_file="$target_dir/config.yml"
+  local config_target="$target_dir/config.yml"
+  local mcp_target="$target_dir/mcp.json"
 
   install -d -m 0700 "$target_dir"
-  backup_if_changed "$source_file" "$target_file"
-  install -m 0600 "$source_file" "$target_file"
-  printf 'Installed OMP configuration at %s\n' "$target_file"
+  backup_if_changed "$config_source" "$config_target"
+  backup_if_changed "$mcp_source" "$mcp_target"
+  install -m 0600 "$config_source" "$config_target"
+  install -m 0600 "$mcp_source" "$mcp_target"
+  printf 'Installed OMP configuration at %s and %s\n' "$config_target" "$mcp_target"
 }
 
 usage() {
