@@ -1,0 +1,48 @@
+# Environment files and local overrides
+.env
+.env.*
+!.env.example
+*.local
+*.private
+
+# Keys, certificates, and credential files
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+.netrc
+.npmrc
+.pypirc
+**/.ssh/
+**/credentials*
+**/auth*.json
+**/secrets.yml
+
+# Databases and application state
+**/agent.db
+**/agent.db-*
+**/*.sqlite
+**/*.sqlite3
+**/*.db-wal
+**/*.db-shm
+**/sessions/
+**/session/
+**/artifacts/
+**/cache/
+**/logs/
+**/plugins/
+
+# Tool-local configuration roots must be allowlisted file by file
+**/.omp/
+**/.codex/
+**/.claude/
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/

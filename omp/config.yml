@@ -1,0 +1,96 @@
+symbolPreset: unicode
+theme:
+  dark: titanium
+setupVersion: 1
+statusLine:
+  preset: default
+  compactThinkingLevel: false
+  showHookStatus: true
+  sessionAccent: true
+  transparent: false
+terminal:
+  showProgress: false
+tui:
+  textSizing: false
+  tight: false
+defaultThinkingLevel: xhigh
+tier:
+  openai: auto
+  anthropic: none
+advisor:
+  enabled: true
+  subagents: true
+  syncBacklog: "off"
+github:
+  enabled: true
+task:
+  eager: always
+  showResolvedModelBadge: true
+  softRequestBudget: 200
+  softRequestBudgetNotice: true
+  batch: true
+  enableLsp: true
+  maxConcurrency: 16
+  maxRecursionDepth: 3
+modelRoles:
+  default: openai-codex/gpt-5.6-sol:high
+  smol: openai-codex/gpt-5.6-luna:low
+  advisor: anthropic/claude-fable-5:xhigh
+  slow: openai-codex/gpt-5.6-sol:xhigh
+  designer: anthropic/claude-fable-5:xhigh
+  plan: openai-codex/gpt-5.6-sol:high
+  commit: openai-codex/gpt-5.6-luna:low
+  task: openai-codex/gpt-5.6-sol:high
+  vision: openai-codex/gpt-5.6-sol:high
+  tiny: openai-codex/gpt-5.6-luna:low
+display:
+  shimmer: classic
+  showTokenUsage: true
+providers:
+  anthropic:
+    serverSideFallback: false
+  fetch: jina
+  webSearch: codex
+retry:
+  fallbackChains:
+    default:
+      - anthropic/claude-fable-5:xhigh
+    advisor:
+      - openai-codex/gpt-5.6-sol:high
+    designer:
+      - openai-codex/gpt-5.6-sol:high
+    openai-codex/gpt-5.6-luna:
+      - openai-codex/gpt-5.6-sol:low
+    anthropic/claude-fable-5:
+      - openai-codex/gpt-5.6-sol:high
+omitThinking: false
+includeWorkspaceTree: false
+autocompleteMaxVisible: 10
+emojiAutocomplete: true
+branchSummary:
+  enabled: true
+readLineNumbers: false
+commands:
+  enableOpencodeProject: false
+  enableOpencodeUser: false
+steeringMode: all
+interruptMode: immediate
+dev:
+  autoqa: false
+  autoqaConsent: denied
+compaction:
+  idleEnabled: true
+  handoffSaveToDisk: true
+doubleEscapeAction: tree
+hideThinkingBlock: true
+autoResume: false
+collapseChangelog: true
+textVerbosity: low
+features:
+  unexpectedStopDetection: true
+codexResets:
+  autoRedeem: "no"
+startup:
+  quiet: true
+tools:
+  approvalMode: write
