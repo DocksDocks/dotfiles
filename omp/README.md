@@ -48,18 +48,18 @@ omp --smoke-test
 For ARM64 Linux, replace `omp-linux-x64` with `omp-linux-arm64`. Ensure
 `$HOME/.local/bin` is on `PATH`.
 
-From the dotfiles repository root, install the tracked settings and MCP policy
-with:
+From the dotfiles repository root, install the tracked settings, minimal global
+context, and MCP policy with:
 
 ```bash
 ./install.sh omp
 ```
 
-The installer copies `omp/config.yml` and `omp/mcp.json` to
-`~/.omp/agent/config.yml` and `~/.omp/agent/mcp.json`, respectively, with mode
-`0600`, and backs up either differing existing file. Local runtime files such as
-`.env`, `agent.db`, `secrets.yml`, sessions, logs, and caches must not be copied
-into the repository.
+The installer copies `omp/AGENTS.md`, `omp/config.yml`, and `omp/mcp.json` to
+the corresponding files under `~/.omp/agent/` with mode `0600`, and backs up
+any differing existing file. Local runtime files such as `.env`, `agent.db`,
+`secrets.yml`, sessions, logs, and caches must not be copied into the
+repository.
 
 ## Intent: frontier models for substantive work
 
@@ -231,6 +231,26 @@ context work while the session is not actively streaming.
 Source:
 
 - [OMP compaction and snapcompact behavior](https://github.com/can1357/oh-my-pi/blob/v17.0.1/docs/compaction.md)
+
+## Intent: minimal OMP-native global context
+
+`omp/AGENTS.md` is deliberately short but non-empty. Installed at
+`~/.omp/agent/AGENTS.md`, the native user context shadows
+`~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` without disabling the Claude or
+Codex discovery providers and their skills, hooks, commands, or tools.
+
+Only durable user-level behavior absent from project context belongs there:
+current official documentation for unfamiliar or version-sensitive interfaces,
+assessment-only requests staying read-only, and standing Docks plan-review
+consent. Model routing lives in `config.yml`; skill and agent authoring rules
+belong in project context or lazily loaded skills.
+
+An empty native file would contribute nothing and would not reliably shadow the
+external user context files, so the minimal explicit file is intentional.
+
+Source:
+
+- [OMP context discovery and shadowing](https://github.com/can1357/oh-my-pi/blob/v17.0.1/docs/context-files.md)
 
 ## Intent: no approval prompts and explicit MCP exclusions
 
