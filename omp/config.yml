@@ -19,7 +19,7 @@ tier:
   anthropic: none
 advisor:
   enabled: true
-  subagents: true
+  subagents: false
   syncBacklog: "off"
 github:
   enabled: true

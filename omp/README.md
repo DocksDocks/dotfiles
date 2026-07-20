@@ -200,14 +200,15 @@ Sources:
 ```yaml
 advisor:
   enabled: true
-  subagents: true
+  subagents: false
   syncBacklog: "off"
 ```
 
-The advisor supplies an independent Fable review channel to primary and
-subagent sessions. Backlog synchronization stays off so a slow advisor does not
-pause the main implementation loop for up to 30 seconds. Advisor observations
-can still arrive asynchronously.
+The advisor supplies an independent Fable review channel to the primary session
+only. Disabling advisor inheritance for subagents avoids multiplying review
+traffic, model cost, and steering across delegated work. Backlog synchronization
+stays off so a slow advisor does not pause the main implementation loop for up
+to 30 seconds. Advisor observations can still arrive asynchronously.
 
 Source:
 
