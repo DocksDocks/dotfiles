@@ -63,18 +63,21 @@ repository.
 
 ## Intent: frontier models for substantive work
 
-OMP resolves named roles to model selectors. The configuration assigns the
-frontier coding model to implementation, planning, and vision work:
+OMP resolves named roles to model selectors. The configuration assigns:
 
 | Roles | Selector | Intent |
 | --- | --- | --- |
-| `default`, `plan`, `task`, `vision` | `openai-codex/gpt-5.6-sol:high` | Strong coding and reasoning without making every task xhigh |
-| `slow` | `openai-codex/gpt-5.6-sol:xhigh` | Difficult investigations and the bundled reviewer agent |
-| `advisor`, `designer` | `anthropic/claude-fable-5:xhigh` | Independent cross-model review and design specialization |
+| `default`, `advisor`, `slow`, `designer` | `anthropic/claude-opus-5:xhigh` | Primary session, advisor channel, difficult investigations, the bundled reviewer, and design specialization |
+| `plan`, `task`, `vision` | `openai-codex/gpt-5.6-sol:high` | Planning, delegated implementation, and vision |
 
 The bundled OMP reviewer resolves through the `slow` role, while the general
-task worker resolves through `task`. Explicit effort suffixes in the model
-selectors keep these role choices stable.
+task worker resolves through `task`. A role's suffix governs the thinking level
+only when the caller omits the coarse `effort` selector; see
+[role-governed reasoning](#intent-role-governed-reasoning-for-delegated-work).
+
+Because no per-model reasoning ceiling is configurable, the role assignments
+are the ceiling. No role puts Sol above `high` or Opus above `xhigh`, and Fable
+is now reachable only as a fallback target.
 
 Sources:
 
@@ -118,6 +121,51 @@ Sources:
 - [Artificial Analysis intelligence methodology](https://artificialanalysis.ai/methodology/intelligence-benchmarking)
 - [OMP commit model selection](https://github.com/can1357/oh-my-pi/blob/v17.0.1/packages/coding-agent/src/commit/model-selection.ts)
 
+## Intent: role-governed reasoning for delegated work
+
+A `task` spawn may carry a coarse `effort` selector. When present it indexes
+the resolved model's supported-effort ladder — `lo` takes the first entry,
+`med` the middle entry, `hi` the last — and the result replaces the `:level`
+suffix on the matching `modelRoles` entry rather than refining it.
+
+Every current ladder ends at `max`, so `effort: hi` resolves to `max` on Sol,
+Luna, and Opus alike, above the ceiling the roles assign. A spawn that omits
+`effort` keeps its role's configured level instead: `low` for `smol`, `commit`,
+and `tiny`; `high` for `plan`, `task`, and `vision`; `xhigh` for `slow` and
+`designer`.
+
+That choice belongs to the caller, so it is stated in `AGENTS.md` rather than
+in this configuration. No setting caps the level that is selected:
+
+- a role's `:level` suffix is discarded whenever `effort` is passed;
+- `defaultThinkingLevel` applies to the session, not to spawns;
+- a `models.yml` `modelOverrides.<model>.thinking.efforts` list is accepted and
+  then silently overwritten, because the catalog normalizer recomputes the
+  canonical ladder from the model family whenever the supplied list differs.
+  Sibling override fields such as `contextWindow` do take effect, so the
+  discrepancy is specific to `thinking`.
+
+One setting does cap the effort that reaches the provider, and it is
+deliberately unused: `modelOverrides.<model>.compat.reasoningEffortMap` remaps
+the wire value, so `{max: high}` sends `reasoning_effort: high` while the
+session, status line, and transcript continue to report `max`. It is also
+OpenAI-only — the Anthropic compat builder has no such field, and unknown keys
+are dropped — so it could not cover Opus. A ceiling that reports itself
+incorrectly is worse than a documented role assignment, so the roles carry the
+ceiling instead.
+
+The `thinking.efforts` behavior contradicts the documented purpose of
+`modelOverrides` and was verified empirically against the installed OMP 17.1.3
+build: an installed override left `omp models --json` and a live `effort: hi`
+spawn on the uncapped ladder. The sources for this section are therefore pinned
+to `v17.1.3`, while the rest of this document cites `v17.0.1`.
+
+Sources:
+
+- [OMP task effort to thinking level](https://github.com/can1357/oh-my-pi/blob/v17.1.3/packages/coding-agent/src/thinking.ts)
+- [OMP subagent model and effort resolution](https://github.com/can1357/oh-my-pi/blob/v17.1.3/packages/coding-agent/src/task/executor.ts)
+- [OMP model and provider configuration](https://github.com/can1357/oh-my-pi/blob/v17.1.3/docs/models.md)
+
 ## Intent: predictable fallback behavior
 
 Model-specific fallback keys take precedence over role and default chains:
@@ -135,10 +183,12 @@ The fallback policy preserves the purpose of each role:
 
 - Luna failures recover to Sol-low rather than escalating lightweight work to a
   high-effort frontier call.
-- Fable failures recover to Sol-high so advisor and designer work still receives
-  a strong model.
-- The default Sol-led roles may fall back to Fable-xhigh during supported
-  provider failures.
+- The Opus-led `advisor`, `slow`, and `designer` roles recover to Sol-high, so a
+  provider-level Anthropic failure still leaves review, investigation, and
+  design work on a strong model from the other provider.
+- The `default` role recovers to Fable-xhigh, keeping the primary session on a
+  1M-context model; a Fable failure then recovers to Sol-high through the
+  model-specific chain.
 
 Anthropic server-side fallback is disabled:
 

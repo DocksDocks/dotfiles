@@ -36,8 +36,8 @@ modelRoles:
   default: anthropic/claude-opus-5:xhigh
   smol: openai-codex/gpt-5.6-luna:low
   advisor: anthropic/claude-opus-5:xhigh
-  slow: openai-codex/gpt-5.6-sol:xhigh
-  designer: anthropic/claude-fable-5:xhigh
+  slow: anthropic/claude-opus-5:xhigh
+  designer: anthropic/claude-opus-5:xhigh
   plan: openai-codex/gpt-5.6-sol:high
   commit: openai-codex/gpt-5.6-luna:low
   task: openai-codex/gpt-5.6-sol:high
@@ -56,6 +56,8 @@ retry:
     default:
       - anthropic/claude-fable-5:xhigh
     advisor:
+      - openai-codex/gpt-5.6-sol:high
+    slow:
       - openai-codex/gpt-5.6-sol:high
     designer:
       - openai-codex/gpt-5.6-sol:high
