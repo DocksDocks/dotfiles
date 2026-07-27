@@ -32,8 +32,6 @@ task:
   enableLsp: true
   maxConcurrency: 16
   maxRecursionDepth: 3
-  agentModelOverrides:
-    plan-reviewer: anthropic/claude-opus-5
 modelRoles:
   default: anthropic/claude-opus-5:xhigh
   smol: openai-codex/gpt-5.6-luna:low
