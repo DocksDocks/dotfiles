@@ -21,6 +21,11 @@ MUST use `ask` before:
 - A request that contradicts the repo: surface the conflict and let me resolve it; never
   silently pick one side.
 
+If `ask` is not registered — subagent, headless, or `-p` print runs, where `hasUI` is false —
+the MUST above cannot be satisfied: do not fabricate the call and do not stall on it. Take the
+conservative reversible option and put the question, plus the assumption you made, in your
+final report so whoever spawned you can decide.
+
 NEVER use `ask` for:
 - Permission to begin, or to confirm scope already stated in the request.
 - Anything a tool, grep, or doc can answer — go read it.
