@@ -1,29 +1,29 @@
 symbolPreset: unicode
-theme:
+theme: 
   dark: titanium
 setupVersion: 1
-statusLine:
+statusLine: 
   preset: default
   compactThinkingLevel: false
   showHookStatus: true
   sessionAccent: true
   transparent: false
-terminal:
+terminal: 
   showProgress: false
-tui:
+tui: 
   textSizing: false
   tight: false
 defaultThinkingLevel: xhigh
-tier:
+tier: 
   openai: auto
   anthropic: none
-advisor:
+advisor: 
   enabled: true
   subagents: false
   syncBacklog: "off"
-github:
+github: 
   enabled: true
-task:
+task: 
   eager: always
   showResolvedModelBadge: true
   softRequestBudget: 200
@@ -32,55 +32,79 @@ task:
   enableLsp: true
   maxConcurrency: 16
   maxRecursionDepth: 3
-modelRoles:
-  default: anthropic/claude-opus-5:xhigh
-  smol: openai-codex/gpt-5.6-luna:low
+modelRoles: 
+  smol: openai-codex/gpt-5.6-luna:high
   advisor: anthropic/claude-opus-5:xhigh
-  slow: anthropic/claude-opus-5:xhigh
   designer: anthropic/claude-opus-5:xhigh
-  plan: openai-codex/gpt-5.6-sol:high
-  commit: openai-codex/gpt-5.6-luna:low
+  plan: anthropic/claude-opus-5:max
+  commit: openai-codex/gpt-5.6-luna:high
   task: openai-codex/gpt-5.6-sol:high
-  vision: openai-codex/gpt-5.6-sol:high
-  tiny: openai-codex/gpt-5.6-luna:low
-display:
+  vision: anthropic/claude-opus-5:high
+  tiny: openai-codex/gpt-5.6-luna:high
+  default: anthropic/claude-opus-5:xhigh
+  slow: anthropic/claude-opus-5:max
+display: 
   shimmer: classic
   showTokenUsage: true
-providers:
-  anthropic:
+providers: 
+  anthropic: 
     serverSideFallback: false
   fetch: jina
-  webSearch: codex
-retry:
-  fallbackChains:
-    default:
+  webSearchOrder: 
+    - codex
+    - perplexity
+    - gemini
+    - anthropic
+    - xai
+    - zai
+    - exa
+    - tinyfish
+    - jina
+    - kagi
+    - tavily
+    - firecrawl
+    - brave
+    - kimi
+    - parallel
+    - synthetic
+    - searxng
+    - startpage
+    - duckduckgo
+    - ecosia
+    - google
+    - mojeek
+    - public
+retry: 
+  fallbackChains: 
+    default: 
       - anthropic/claude-fable-5:xhigh
-    advisor:
-      - openai-codex/gpt-5.6-sol:high
-    slow:
-      - openai-codex/gpt-5.6-sol:high
-    designer:
-      - openai-codex/gpt-5.6-sol:high
-    openai-codex/gpt-5.6-luna:
-      - openai-codex/gpt-5.6-sol:low
-    anthropic/claude-fable-5:
-      - openai-codex/gpt-5.6-sol:high
+      - openai-codex/gpt-5.6-sol:xhigh
+    advisor: 
+      - openai-codex/gpt-5.6-sol:xhigh
+    slow: 
+      - openai-codex/gpt-5.6-sol:xhigh
+    designer: 
+      - openai-codex/gpt-5.6-sol:xhigh
+    openai-codex/gpt-5.6-luna: 
+      - openai-codex/gpt-5.6-sol:medium
+    anthropic/claude-fable-5: 
+      - openai-codex/gpt-5.6-sol:xhigh
 omitThinking: false
 includeWorkspaceTree: false
 autocompleteMaxVisible: 10
 emojiAutocomplete: true
-branchSummary:
+branchSummary: 
   enabled: true
 readLineNumbers: false
-commands:
+commands: 
   enableOpencodeProject: false
   enableOpencodeUser: false
 steeringMode: all
 interruptMode: immediate
-dev:
+dev: 
   autoqa: false
   autoqaConsent: denied
-compaction:
+compaction: 
   idleEnabled: true
   handoffSaveToDisk: true
 doubleEscapeAction: tree
@@ -88,11 +112,11 @@ hideThinkingBlock: true
 autoResume: false
 collapseChangelog: true
 textVerbosity: low
-features:
+features: 
   unexpectedStopDetection: true
-codexResets:
+codexResets: 
   autoRedeem: "no"
-startup:
+startup: 
   quiet: true
-tools:
+tools: 
   approvalMode: yolo
