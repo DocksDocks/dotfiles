@@ -33,7 +33,7 @@ task:
   maxConcurrency: 16
   maxRecursionDepth: 3
 modelRoles: 
-  smol: openai-codex/gpt-5.6-luna:high
+  smol: openai-codex/gpt-5.6-luna
   advisor: anthropic/claude-opus-5:xhigh
   designer: anthropic/claude-opus-5:xhigh
   plan: anthropic/claude-opus-5:max

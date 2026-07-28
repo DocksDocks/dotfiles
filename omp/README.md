@@ -80,7 +80,8 @@ reasoning that model spends.
 | `slow`, `plan` | `anthropic/claude-opus-5:max` | Difficult investigations, the bundled reviewer, and planning |
 | `vision` | `anthropic/claude-opus-5:high` | Image inspection; dormant while the active model accepts images |
 | `task` | `openai-codex/gpt-5.6-sol:high` | Delegated implementation |
-| `smol`, `commit`, `tiny` | `openai-codex/gpt-5.6-luna:high` | Commit helpers, titles, memory utilities, classification |
+| `commit`, `tiny` | `openai-codex/gpt-5.6-luna:high` | Commit helpers, titles, memory utilities |
+| `smol` | `openai-codex/gpt-5.6-luna` | Backs the bundled research agents; level left to each agent |
 
 The bundled OMP reviewer resolves through the `slow` role, while the general
 task worker resolves through `task`.
@@ -129,28 +130,35 @@ effortLevel ?? (explicitThinkingLevel ? resolvedThinkingLevel : (thinkingLevel ?
 
 Three consequences drive this configuration.
 
-**Every role carries an explicit suffix, so `defaultThinkingLevel` is inert.**
-Startup resolution reads `scoped.thinkingLevel ?? defaultThinkingSelector`: a
-role's suffix wins, and the global setting is consulted only for a selector
-that has none. `defaultThinkingLevel: xhigh` is retained as the value any
-unsuffixed selector would land on — for example a manual `/model` switch — not
-as the session's operative setting.
+**`defaultThinkingLevel` never reaches a spawn.** Startup resolution reads
+`scoped.thinkingLevel ?? defaultThinkingSelector`, so a role's suffix wins and
+the global setting covers only an unsuffixed selector — a manual `/model`
+switch, say. That path is `findInitialModel`, which serves the main session
+alone; the subagent resolver never reads the setting at all. With `default`
+suffixed at `:xhigh`, `defaultThinkingLevel: xhigh` is currently decorative.
 
-**An explicit suffix overrides an agent's own preference.** The bundled `task`
-agent declares `thinkingLevel: auto` and `sonic` declares `medium`, but a role
-selector with a suffix supersedes both. With `task: …sol:high` and
-`smol: …luna:high`, the `auto` classifier never engages for delegated work.
-That is intentional here: `auto` classifies per turn and is capped at `xhigh`,
-which makes delegated reasoning depth vary with prompt shape rather than with
-the role's purpose.
+**An explicit suffix overrides an agent's own preference**, and that cuts both
+ways. The bundled `task` agent declares `thinkingLevel: auto` and `sonic`
+declares `medium`, but `task: …sol:high` supersedes the former, so the `auto`
+classifier never engages for delegated work. That is deliberate: `auto`
+classifies per turn and is capped at `xhigh`, which would make delegated depth
+vary with prompt shape rather than with the role's purpose.
+
+`smol` is deliberately left unsuffixed for the opposite reason. It backs the
+read-only research agents, and each already declares the depth its author
+intended — `scout` at `medium`, `librarian` at `minimal`, `sonic` at `medium`.
+A suffix here would flatten all three to one level and silently discard that
+tuning; without one, each agent keeps it. Every `@smol` agent declares a level,
+so nothing falls through to an unpinned default.
 
 **The per-spawn `effort` hint is disabled.** `task.enableEffort` defaults to
 `false`, so the `task` tool exposes no `effort` parameter at all and
 `task.maxEffort` has nothing to cap. Were it enabled, `lo`/`med`/`hi` would
 index the resolved model's supported ladder — with the five-tier ladder every
-model here exposes, `med` resolves to `high` and `hi` to `max`. The role
-suffixes are therefore the only reasoning control in effect, which is the
-intent: depth should follow the role, not the caller's mood.
+model here exposes, `med` resolves to `high` and `hi` to `max`. Reasoning depth
+is therefore fixed before a spawn starts — by the role's suffix, or by the
+agent's own frontmatter where the role leaves the level open. Both are
+properties of the work being delegated; neither is the caller's per-call guess.
 
 ### `xhigh` and `max` are genuinely different on these models
 
@@ -182,19 +190,24 @@ Sources:
 - [OMP thinking control mode and effort ladders](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/catalog/src/model-thinking.ts)
 - [OMP provider request construction](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/ai/src/stream.ts)
 - [OMP settings definitions](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/config/settings-schema.ts)
+- [OMP bundled agent frontmatter](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/prompts/agents/scout.md)
 
 ## Intent: cheap models for mechanical work, at useful depth
 
-The `smol`, `commit`, and `tiny` roles use:
+The `commit` and `tiny` roles use `openai-codex/gpt-5.6-luna:high`, and `smol`
+uses the same model with no level:
 
 ```yaml
-openai-codex/gpt-5.6-luna:high
+commit: openai-codex/gpt-5.6-luna:high
+tiny:   openai-codex/gpt-5.6-luna:high
+smol:   openai-codex/gpt-5.6-luna
 ```
 
-These roles cover commit helpers, titles, memory utilities, classification, and
-small background operations. The model is chosen for price and throughput; the
-level is chosen at the point on its ladder where reasoning is still nearly free
-in latency terms.
+`commit` and `tiny` produce short text directly — commit messages, titles,
+retained memories — so the role sets their depth. `smol` only supplies the
+model to agents that set their own, as described above. The model is chosen for
+price and throughput; where this configuration does pick a level, it picks the
+point on the ladder where reasoning is still nearly free in latency terms.
 
 Artificial Analysis reports the following, retrieved 2026-07-28:
 
@@ -403,10 +416,6 @@ belong in project context or lazily loaded skills.
 
 An empty native file would contribute nothing and would not reliably shadow the
 external user context files, so the minimal explicit file is intentional.
-
-Note that the file's guidance on the `task` tool's `effort` field describes a
-parameter that `task.enableEffort: false` does not expose. It is retained
-against that setting being turned on; it has no effect while it is off.
 
 Source:
 
