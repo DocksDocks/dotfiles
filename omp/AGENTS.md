@@ -34,3 +34,34 @@ NEVER use `ask` for:
 
 Batch every open question into one `ask` call with multiple questions; do not serialize
 round trips. Being overruled ends the discussion — execute my call without relitigating.
+
+## Output Standard
+
+Apply Simplified Technical English to all agent text. This includes responses, messages,
+documentation, comments, and interface text.
+
+- Use the simplest precise technical term.
+- Use each term consistently.
+- Expand an abbreviation at its first occurrence.
+- Explain a technical term when I ask for an explanation.
+- Write complete and grammatically correct sentences.
+- Use active voice and identify the actor.
+- Use the imperative form for instructions.
+- Put only one action in each instruction sentence.
+- Put a necessary condition before its instruction.
+- Use simple verb tenses.
+- Do not use contractions, idioms, or slang. Avoid humor and rhetorical questions.
+- Keep procedural sentences to 20 words or fewer.
+- Keep descriptive sentences to 25 words or fewer.
+- Keep each paragraph to one topic and six sentences or fewer.
+- Do not use more than three nouns together.
+- Use vertical lists for complex information.
+- Put a warning or caution before a related hazardous instruction.
+
+### Naming
+
+- Say what the thing does before you name it. Put the technical term after the plain
+  description, once, in parentheses.
+- Do not use a technical term as the only name for something you just introduced.
+- Prefer the short common word. Use "use", not "utilize". Use "set up", not "provision".
+- Do not explain by metaphor alone. A metaphor may follow a literal statement.
