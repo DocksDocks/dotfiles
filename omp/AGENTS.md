@@ -40,6 +40,16 @@ round trips. Being overruled ends the discussion — execute my call without rel
 Apply Simplified Technical English to all agent text. This includes responses, messages,
 documentation, comments, and interface text.
 
+Reply in the language I use, and apply every rule below to that language.
+
+A rule that names English grammar applies only to English. The contraction ban is one
+such rule. In another language, follow the normal grammar of that language. Portuguese,
+Spanish, French, Italian, and German merge a preposition with an article, and that merge
+is required, not optional.
+
+Treat the word limits as approximate outside English. Some languages need more words to
+carry the same content.
+
 - Use the simplest precise technical term.
 - Use each term consistently.
 - Expand an abbreviation at its first occurrence.
