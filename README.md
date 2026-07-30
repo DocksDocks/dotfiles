@@ -12,6 +12,7 @@ files, session history, caches, logs, and machine-specific state remain local.
 | --- | --- |
 | [`.githooks/`](.githooks/) | Version-controlled safeguards for staged commits |
 | [`omp/`](omp/) | OMP settings, minimal global context, MCP policy, installation, and rationale |
+| [`xfce4/`](xfce4/) | Night Owl Xfce desktop assets, rationale, and undo contract |
 
 ## Install
 
@@ -34,6 +35,18 @@ Enable only the repository safeguards:
 ```bash
 ./install.sh hooks
 ```
+
+Apply the Xfce desktop (needs sudo for distro packages, and an Xfce session):
+
+```bash
+./xfce.sh
+```
+
+`xfce.sh` is not part of `./install.sh all`, because it installs distro
+packages and only makes sense on a machine running Xfce. It snapshots every
+setting it touches before the first change; `./xfce.sh status` compares current
+against wanted, and `./xfce.sh revert` restores the snapshot. See
+[`xfce4/README.md`](xfce4/README.md).
 
 The installer copies explicitly listed files rather than linking or copying
 entire application directories. For OMP, it installs the tracked settings,

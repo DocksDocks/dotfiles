@@ -48,8 +48,23 @@ install_omp() {
     "$agents_target" "$config_target" "$mcp_target"
 }
 
+# The Xfce desktop is not part of `all`: it installs distro packages, so it
+# needs sudo, and it only makes sense on a machine running Xfce. Delegated
+# rather than reimplemented so `./xfce.sh` stays usable on its own.
+install_xfce() {
+  local script="$repo_root/xfce.sh"
+
+  if [[ ! -x "$script" ]]; then
+    printf 'Cannot install Xfce desktop: %s is missing or not executable\n' "$script" >&2
+    exit 1
+  fi
+
+  shift || true
+  "$script" "$@"
+}
+
 usage() {
-  printf 'Usage: %s [all|hooks|omp]\n' "${0##*/}"
+  printf 'Usage: %s [all|hooks|omp|xfce [xfce-subcommand]]\n' "${0##*/}"
 }
 
 case "${1:-all}" in
@@ -62,6 +77,9 @@ case "${1:-all}" in
     ;;
   omp)
     install_omp
+    ;;
+  xfce)
+    install_xfce "$@"
     ;;
   -h|--help)
     usage
