@@ -36,22 +36,25 @@ Enable only the repository safeguards:
 ./install.sh hooks
 ```
 
-Apply the Xfce desktop (needs sudo for distro packages, and an Xfce session):
+The installer copies explicitly listed files rather than linking or copying
+entire application directories. For OMP, it installs the tracked settings,
+minimal global context, and MCP denylist. Existing managed files are backed up
+before replacement when their contents differ.
+
+## Xfce desktop
+
+`xfce.sh` is a separate tool with its own lifecycle. It is deliberately not
+reachable through `install.sh`, which only manages tracked configuration files:
+the desktop script installs distro packages, needs sudo, and only makes sense
+on a machine already running Xfce.
 
 ```bash
 ./xfce.sh
 ```
 
-`xfce.sh` is not part of `./install.sh all`, because it installs distro
-packages and only makes sense on a machine running Xfce. It snapshots every
-setting it touches before the first change; `./xfce.sh status` compares current
-against wanted, and `./xfce.sh revert` restores the snapshot. See
-[`xfce4/README.md`](xfce4/README.md).
-
-The installer copies explicitly listed files rather than linking or copying
-entire application directories. For OMP, it installs the tracked settings,
-minimal global context, and MCP denylist. Existing managed files are backed up
-before replacement when their contents differ.
+It snapshots every setting it touches before the first change. `./xfce.sh
+status` compares current against wanted, and `./xfce.sh revert` restores the
+snapshot. See [`xfce4/README.md`](xfce4/README.md).
 
 ## Security model
 
@@ -99,6 +102,9 @@ Stage explicit paths instead of using `git add .`.
 1. Add a top-level directory containing only reviewed, portable files.
 2. Add an intent-based README explaining non-obvious choices and citing primary
    sources.
-3. Add an explicit installation function and target to `install.sh`.
+3. Add an explicit installation function and target to `install.sh`, if the
+   tool is configuration only. A tool that installs distro packages or needs
+   sudo ships its own script instead, as `xfce.sh` does, so that `install.sh`
+   stays safe to run on any machine.
 4. Extend `.gitignore` for the tool's credentials and runtime state.
 5. Review the complete staged diff before publishing.
