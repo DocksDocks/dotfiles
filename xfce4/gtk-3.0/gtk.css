@@ -1,0 +1,135 @@
+/* Client-side-decoration headerbar buttons.
+ *
+ * Tokyonight-Dark, like most GTK3 themes, renders headerbar buttons flat with
+ * no resting background, so in apps that use CSDs (GNOME-style titlebars) the
+ * buttons read as bare icons and their hit target is invisible. Give them a
+ * faint currentColor wash so the affordance is visible in both light and dark
+ * variants without hardcoding a palette colour.
+ *
+ * `:not(.titlebutton)` leaves the window controls (close/maximize/minimize)
+ * alone -- those are drawn by the theme and already have their own styling.
+ */
+headerbar button:not(.titlebutton) {
+  background-image: image(alpha(currentColor, 0.12));
+  border-radius: 4px;
+}
+
+headerbar button:not(.titlebutton):hover {
+  background-image: image(alpha(currentColor, 0.22));
+}
+
+/* ------------------------------------------------------------- panel ---- */
+/* The panel window carries the style classes `panel` and `xfce4-panel`
+ * (panel/panel-base-window.c:219-223). Target the CLASS, not #XfcePanelWindow-N:
+ * the widget id embeds the panel number, and which panel survives the merge is
+ * decided at install time -- env override, persisted choice, engine probe, then
+ * a geometry tiebreak -- so a fresh box can land on panel-1 and an id selector
+ * would silently match nothing. CSS that fails to match warns about nothing.
+ *
+ * The panel builds its own background CSS at
+ * GTK_STYLE_PROVIDER_PRIORITY_APPLICATION (600), and only when the xfconf
+ * `background-style` is COLOR; ~/.config/gtk-3.0/gtk.css loads at USER (800),
+ * so this rule wins regardless of that setting.
+ *
+ * Doing it here rather than through the xfconf `background-rgba` property is
+ * deliberate: that property is an array of four doubles, and the snapshot row
+ * format used by `panel-props.bak` (panel|property|type|value) cannot express
+ * an array -- revert would replay it as a scalar and restore garbage. gtk.css
+ * is already captured wholesale by the gtk.css.bak/gtk.state pair.
+ *
+ * Only PAINT properties reach this widget. The panel allocates its own
+ * contents from xfconf, so box properties are silently ignored -- padding,
+ * margin and min-height on the panel were each measured to do nothing. Do not
+ * add layout rules here expecting them to work.
+ *
+ * Fully opaque on purpose. At 0.94 the wallpaper bled through the whole bar,
+ * and a translucent border-top read as a gap along the top edge where the
+ * desktop showed through.
+ */
+.xfce4-panel {
+  background-color: rgb(1, 22, 39);
+}
+
+/* The clock's button has a STATIC widget name, set in plugins/clock/clock.c.
+ * The plugin wrapper around it is named "<plugin>-<unique-id>", and that id is
+ * allocated per machine, so targeting #clock-button instead of #clock-12 keeps
+ * this rule working on any box.
+ *
+ * Size is deliberately absent here. clock-digital.c pushes digital-time-font
+ * and digital-date-font onto the labels as pango attributes, and an explicit
+ * pango attribute list overrides CSS font-size -- so the font size lives in
+ * xfconf and only the colour is settled here. `opacity: 1` defeats the theme's
+ * dimming of panel text, which is what made the clock look washed out.
+ */
+#clock-button label {
+  color: #d6deeb;
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------- calendar ---- */
+
+/* Scope warning, and it is not an oversight: these rules are GLOBAL.
+ *
+ * The clock's calendar lives in a plain undecorated GtkWindow created by
+ * plugins/clock/clock.c with no widget name, no style class and no unique
+ * ancestor, so there is no selector that reaches only it. Every GTK3 calendar
+ * on the box picks these up. That is acceptable here because the desktop is
+ * uniformly dark already, so a consistent calendar is the better outcome.
+ *
+ * What GTK 3.24 actually permits is far less than it looks. GtkCalendar has
+ * exactly ONE CSS node, `calendar` (gtk/gtkcalendar.c). The header, the arrows,
+ * the weekday row and the day grid are not child nodes -- they are painted in a
+ * cairo loop that temporarily adds style classes to that single node. Hence
+ * `calendar.header`, never `calendar header`.
+ *
+ * Consequences worth knowing before editing this:
+ *   - Per-day rounded backgrounds are impossible. Days are a 6x7 cairo loop.
+ *     Only the SELECTED day gets a gtk_render_background call.
+ *   - Marked days (:active) and out-of-month days (:indeterminate) can change
+ *     text colour and weight only; neither has a background render branch.
+ *   - There is no "today" state once another day is selected.
+ *   - Blur is impossible: xfwm4 has no blur backend. Translucency is not even
+ *     guaranteed, because that popup never requests an RGBA visual.
+ */
+calendar {
+  background-color: #0b2942;
+  color: #d6deeb;
+  border: 1px solid rgba(130, 170, 255, 0.18);
+  border-radius: 12px;
+  padding: 6px;
+}
+
+/* Month/year strip along the top. */
+calendar.header {
+  background-color: transparent;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(130, 170, 255, 0.14);
+}
+
+/* The previous/next arrows. */
+calendar.button {
+  color: #82AAFF;
+}
+
+/* Weekday initials and week numbers. */
+calendar.highlight {
+  color: #21c7a8;
+}
+
+/* The one day that does get a real background rectangle. */
+calendar:selected {
+  background-color: #124b62;
+  color: #ffffff;
+  border-radius: 8px;
+}
+
+/* Marked days -- text only, no background is reachable. */
+calendar:active {
+  color: #21c7a8;
+  font-weight: bold;
+}
+
+/* Leading/trailing days from the adjacent months. */
+calendar:indeterminate {
+  color: rgba(214, 222, 235, 0.28);
+}

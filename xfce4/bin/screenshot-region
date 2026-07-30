@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# screenshot-region -- GNOME/Ubuntu-style PrtSc for Xfce: drag-select a region,
+# save it under the Screenshots folder, and leave it on the clipboard, in one
+# go. No chooser dialog, no save-as dialog. Cancelling leaves nothing behind.
+#
+# Xfce's stock Print binding opens xfce4-screenshooter's chooser, which costs
+# two extra clicks and never touches the clipboard. This wrapper is bound to
+# Print by `xfce.sh screenshot`.
+set -uo pipefail
+
+dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
+mkdir -p "$dir"
+file="$dir/Screenshot_$(date +%Y-%m-%d_%H-%M-%S).png"
+
+# --region: click-drag a rectangle (no chooser). --save <fullpath>: write
+# straight to that path (no save-as dialog).
+xfce4-screenshooter --region --save "$file"
+
+if [[ -s "$file" ]]; then
+  # Backgrounded so xclip keeps owning the CLIPBOARD selection after this
+  # script exits; it exits by itself once another copy takes ownership.
+  # Without a clipboard manager running, a foreground xclip would drop the
+  # image the moment the process ended.
+  xclip -selection clipboard -target image/png -in "$file" >/dev/null 2>&1 &
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -i "$file" "Screenshot captured" \
+      "Saved to ${file/#$HOME/\~} - copied to clipboard" >/dev/null 2>&1 || true
+  fi
+else
+  # Selection cancelled (Esc / right-click) -- do not leave a 0-byte file.
+  rm -f "$file"
+fi

@@ -1,0 +1,81 @@
+/* Compact Night Owl command prompt. */
+
+configuration {
+    show-icons: false;
+}
+
+* {
+    background: #011627;
+    surface: #0b2942;
+    foreground: #d6deeb;
+    foreground-dim: #8badc1;
+    blue: #82AAFF;
+    cyan: #21c7a8;
+    selection: #124b62;
+    font: "Noto Sans 10";
+}
+
+window {
+    width: 40%;
+    background-color: @background;
+    border: 2px;
+    border-color: @blue;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+mainbox {
+    background-color: @background;
+    orientation: vertical;
+    spacing: 14px;
+    children: [ inputbar, listview ];
+}
+
+inputbar {
+    background-color: @surface;
+    orientation: horizontal;
+    text-color: @foreground;
+    border-radius: 8px;
+    padding: 12px 14px;
+    spacing: 10px;
+    children: [ prompt, entry ];
+}
+
+prompt {
+    background-color: @surface;
+    text-color: @cyan;
+}
+
+entry {
+    background-color: @surface;
+    text-color: @foreground;
+}
+
+listview {
+    background-color: @background;
+    layout: vertical;
+    lines: 8;
+    spacing: 4px;
+    scrollbar: false;
+}
+
+element {
+    children: [ element-text ];
+    background-color: @surface;
+    text-color: @foreground-dim;
+    border: 1px;
+    border-color: @surface;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+element selected {
+    background-color: @selection;
+    text-color: @blue;
+    border-color: @cyan;
+}
+
+element-text {
+    background-color: inherit;
+    text-color: inherit;
+}

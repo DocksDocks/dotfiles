@@ -1,0 +1,19 @@
+[/]
+theme-variant='dark'
+enable-wide-handle=true
+default-profile='2b7c4080-0ddd-46c5-8f23-563fd3ba789d'
+profile-list=['2b7c4080-0ddd-46c5-8f23-563fd3ba789d']
+
+[profiles/2b7c4080-0ddd-46c5-8f23-563fd3ba789d]
+use-theme-colors=false
+use-system-font=false
+font='JetBrainsMono Nerd Font 11'
+background-color='#011627'
+foreground-color='#d6deeb'
+background-transparency-percent=4
+bold-color-set=false
+cursor-colors-set=false
+highlight-colors-set=false
+badge-color-set=false
+visible-name='Default'
+palette=['#011627','#EF5350','#22DA6E','#ADDB67','#82AAFF','#C792EA','#21C7A8','#FFFFFF','#575656','#EF5350','#22DA6E','#FFEB95','#82AAFF','#C792EA','#7FDBCA','#FFFFFF']

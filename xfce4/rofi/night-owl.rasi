@@ -1,0 +1,94 @@
+/* Night Owl application grid.
+ * Rofi's layout naming is inverted here: horizontal produces a multi-column grid.
+ */
+
+configuration {
+    show-icons: true;
+    icon-theme: "Papirus-Dark-NightOwl";
+}
+
+* {
+    background: #011627;
+    surface: #0b2942;
+    foreground: #d6deeb;
+    foreground-dim: #8badc1;
+    blue: #82AAFF;
+    cyan: #21c7a8;
+    selection: #124b62;
+    font: "Noto Sans 10";
+}
+
+window {
+    fullscreen: true;
+    background-color: @background;
+    padding: 48px;
+}
+
+mainbox {
+    background-color: @background;
+    orientation: vertical;
+    spacing: 36px;
+    children: [ inputbar, listview ];
+}
+
+inputbar {
+    background-color: @surface;
+    orientation: horizontal;
+    text-color: @foreground;
+    border: 2px;
+    border-color: @blue;
+    border-radius: 12px;
+    padding: 16px 20px;
+    spacing: 12px;
+    children: [ prompt, entry ];
+}
+
+prompt {
+    background-color: @surface;
+    text-color: @cyan;
+}
+
+entry {
+    background-color: @surface;
+    text-color: @foreground;
+}
+
+listview {
+    background-color: @background;
+    layout: horizontal;
+    columns: 6;
+    fixed-columns: true;
+    lines: 4;
+    spacing: 18px;
+    scrollbar: false;
+}
+
+element {
+    orientation: vertical;
+    children: [ element-icon, element-text ];
+    background-color: @surface;
+    text-color: @foreground;
+    border: 2px;
+    border-color: @surface;
+    border-radius: 12px;
+    padding: 20px 12px;
+    spacing: 12px;
+}
+
+element selected {
+    background-color: @selection;
+    text-color: @blue;
+    border-color: @cyan;
+}
+
+element-icon {
+    background-color: inherit;
+    size: 64px;
+}
+
+element-text {
+    background-color: inherit;
+    text-color: inherit;
+    horizontal-align: 0.5;
+    vertical-align: 0.5;
+}
