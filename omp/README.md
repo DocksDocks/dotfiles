@@ -13,7 +13,13 @@ The configuration contains no API keys, OAuth tokens, session databases, or
 machine-specific paths. Runtime authentication and local state stay outside
 version control.
 
-Source links in this document are pinned to `v17.1.7`, the installed release.
+This configuration targets Oh My Pi `v17.2.1` or newer. That version is a
+floor, not a gate. Nothing in this repository inspects the running version or
+refuses to install against another release.
+
+Source links below point at the `v17.2.1` tree. A tagged link keeps each
+citation stable, so a later release cannot silently invalidate the statement it
+supports.
 
 ## Installation
 
@@ -150,9 +156,9 @@ call the user is waiting on without improving what the model sees.
 
 Sources:
 
-- [OMP model and provider configuration](https://github.com/can1357/oh-my-pi/blob/v17.1.7/docs/models.md)
-- [OMP bundled agent definitions](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/task/agents.ts)
-- [OMP inspect_image tool](https://github.com/can1357/oh-my-pi/blob/v17.1.7/docs/tools/inspect_image.md)
+- [OMP model and provider configuration](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/models.md)
+- [OMP bundled agent definitions](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/task/agents.ts)
+- [OMP inspect_image tool](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/tools/inspect_image.md)
 
 ## Intent: reasoning levels chosen explicitly, not inherited
 
@@ -226,13 +232,13 @@ time-to-first-token rising from 39.35s to 67.72s.
 
 Sources:
 
-- [OMP thinking levels and task effort](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/thinking.ts)
-- [OMP subagent model and effort resolution](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/task/executor.ts)
-- [OMP startup model and level resolution](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/config/model-resolver.ts)
-- [OMP thinking control mode and effort ladders](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/catalog/src/model-thinking.ts)
-- [OMP provider request construction](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/ai/src/stream.ts)
-- [OMP settings definitions](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/config/settings-schema.ts)
-- [OMP bundled agent frontmatter](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/prompts/agents/scout.md)
+- [OMP thinking levels and task effort](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/thinking.ts)
+- [OMP subagent model and effort resolution](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/task/executor.ts)
+- [OMP startup model and level resolution](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/config/model-resolver.ts)
+- [OMP thinking control mode and effort ladders](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/catalog/src/model-thinking.ts)
+- [OMP provider request construction](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/ai/src/stream.ts)
+- [OMP settings definitions](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/config/settings-schema.ts)
+- [OMP bundled agent frontmatter](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/prompts/agents/scout.md)
 
 ## Intent: cheap models for mechanical work, at useful depth
 
@@ -306,7 +312,7 @@ Sources:
 - [Claude Opus 5 (xhigh)](https://artificialanalysis.ai/models/claude-opus-5-xhigh)
 - [Claude Opus 5 (max)](https://artificialanalysis.ai/models/claude-opus-5)
 - [Artificial Analysis intelligence methodology](https://artificialanalysis.ai/methodology/intelligence-benchmarking)
-- [OMP commit model selection](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/commit/model-selection.ts)
+- [OMP commit model selection](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/commit/model-selection.ts)
 
 ## Intent: predictable fallback behavior
 
@@ -362,9 +368,9 @@ Opus. Model changes remain controlled by the explicit OMP fallback chains.
 
 Sources:
 
-- [OMP retry fallback chain parsing](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/session/retry-fallback-chains.ts)
-- [OMP settings-aware provider streaming](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/session/settings-stream-fn.ts)
-- [OMP retry policy](https://github.com/can1357/oh-my-pi/blob/v17.1.7/docs/non-compaction-retry-policy.md)
+- [OMP retry fallback chain parsing](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/retry-fallback-chains.ts)
+- [OMP settings-aware provider streaming](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/settings-stream-fn.ts)
+- [OMP retry policy](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/non-compaction-retry-policy.md)
 
 ## Intent: aggressive but bounded delegation
 
@@ -401,9 +407,9 @@ merged and cannot be resumed.
 
 Sources:
 
-- [OMP delegation prompt](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/prompts/system/system-prompt.md)
-- [OMP task tool behavior](https://github.com/can1357/oh-my-pi/blob/v17.1.7/docs/tools/task.md)
-- [OMP task setting definitions](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/config/settings-schema.ts)
+- [OMP delegation prompt](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/prompts/system/system-prompt.md)
+- [OMP task tool behavior](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/tools/task.md)
+- [OMP task setting definitions](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/config/settings-schema.ts)
 
 ## Intent: asynchronous cross-model review
 
@@ -422,7 +428,7 @@ seconds. Advisor observations can still arrive asynchronously.
 
 Source:
 
-- [OMP advisor and backlog behavior](https://github.com/can1357/oh-my-pi/blob/v17.1.7/docs/advisor-watchdog.md)
+- [OMP advisor and backlog behavior](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/advisor-watchdog.md)
 
 ## Intent: context preservation without remote summarizer dependence
 
@@ -441,7 +447,7 @@ context work while the session is not actively streaming.
 
 Source:
 
-- [OMP compaction and snapcompact behavior](https://github.com/can1357/oh-my-pi/blob/v17.1.7/docs/compaction.md)
+- [OMP compaction and snapcompact behavior](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/compaction.md)
 
 ## Intent: minimal OMP-native global context
 
@@ -461,7 +467,7 @@ external user context files, so the minimal explicit file is intentional.
 
 Source:
 
-- [OMP context discovery and shadowing](https://github.com/can1357/oh-my-pi/blob/v17.1.7/docs/context-files.md)
+- [OMP context discovery and shadowing](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/context-files.md)
 
 ## Intent: no approval prompts and explicit MCP exclusions
 
@@ -497,8 +503,8 @@ spend a saved reset automatically.
 
 Sources:
 
-- [OMP AutoQA reporting implementation](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/tools/report-tool-issue.ts)
-- [OMP Codex reset policy](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/session/codex-auto-reset.ts)
+- [OMP AutoQA reporting implementation](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/tools/report-tool-issue.ts)
+- [OMP Codex reset policy](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/codex-auto-reset.ts)
 
 ## Intent: useful visibility without prompt noise
 
@@ -541,7 +547,7 @@ files are runtime concerns and are intentionally outside this configuration.
 
 Sources:
 
-- [OMP provider setting definitions](https://github.com/can1357/oh-my-pi/blob/v17.1.7/packages/coding-agent/src/config/settings-schema.ts)
+- [OMP provider setting definitions](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/config/settings-schema.ts)
 - [Jina Reader](https://jina.ai/reader/)
 
 ## Updates and verification
