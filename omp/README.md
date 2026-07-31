@@ -7,7 +7,7 @@ focused on:
 - deliberate reasoning depth per role, rather than a single global setting;
 - cross-model fallback without silent provider substitution;
 - controlled parallel delegation;
-- reproducible Linux installation and frequent updates.
+- reproducible installation on Linux and macOS, and frequent updates.
 
 The configuration contains no API keys, OAuth tokens, session databases, or
 machine-specific paths. Runtime authentication and local state stay outside
@@ -20,14 +20,34 @@ Source links in this document are pinned to `v17.1.7`, the installed release.
 The standalone release binary is self-contained and supports atomic in-place
 updates through `omp update`.
 
-The following Linux x86-64 installation flow downloads the latest release and
-verifies its GitHub-published SHA-256 digest before installation:
+The following installation flow detects the operating system and the
+architecture, downloads the latest release, and verifies its GitHub-published
+SHA-256 digest before installation. It works on Linux and on macOS:
 
 ```bash
 set -euo pipefail
 
 repo="can1357/oh-my-pi"
-asset="omp-linux-x64"
+
+case "$(uname -s)" in
+  Linux) os="linux" ;;
+  Darwin) os="darwin" ;;
+  *)
+    printf 'Unsupported operating system: %s\n' "$(uname -s)" >&2
+    exit 1
+    ;;
+esac
+
+case "$(uname -m)" in
+  x86_64 | amd64) arch="x64" ;;
+  aarch64 | arm64) arch="arm64" ;;
+  *)
+    printf 'Unsupported architecture: %s\n' "$(uname -m)" >&2
+    exit 1
+    ;;
+esac
+
+asset="omp-$os-$arch"
 version="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | jq -r '.tag_name')"
 
 curl -fL \
@@ -40,15 +60,37 @@ expected="$(
       '.assets[] | select(.name == $asset) | .digest | sub("^sha256:"; "")'
 )"
 
-printf '%s  %s\n' "$expected" /tmp/omp | sha256sum -c -
-install -Dm0755 /tmp/omp "$HOME/.local/bin/omp"
+# macOS does not ship sha256sum. Its base system provides shasum.
+if command -v sha256sum >/dev/null 2>&1; then
+  printf '%s  %s\n' "$expected" /tmp/omp | sha256sum -c -
+else
+  printf '%s  %s\n' "$expected" /tmp/omp | shasum -a 256 -c -
+fi
+
+# BSD install does not support -D. Create the target directory first.
+install -d -m 0755 "$HOME/.local/bin"
+install -m 0755 /tmp/omp "$HOME/.local/bin/omp"
 
 omp --version
 omp --smoke-test
 ```
 
-For ARM64 Linux, replace `omp-linux-x64` with `omp-linux-arm64`. Ensure
-`$HOME/.local/bin` is on `PATH`.
+Two commands in this flow differ between the two platforms:
+
+| Step | Linux | macOS |
+| --- | --- | --- |
+| Digest check | `sha256sum -c -` | `shasum -a 256 -c -` |
+| Binary install | `install -Dm0755 …` | `install -d`, then `install -m0755` |
+
+The release publishes `omp-linux-x64`, `omp-linux-arm64`, `omp-darwin-x64`,
+`omp-darwin-arm64`, and two musl Linux assets. The flow above selects the glibc
+Linux asset. On a musl distribution such as Alpine, set `asset` to
+`omp-linux-musl-x64` or `omp-linux-musl-arm64` instead.
+
+Ensure `$HOME/.local/bin` is on `PATH`.
+
+`curl` does not set the `com.apple.quarantine` attribute. macOS Gatekeeper
+therefore does not block the downloaded binary.
 
 From the dotfiles repository root, install the tracked settings, minimal global
 context, and MCP policy with:

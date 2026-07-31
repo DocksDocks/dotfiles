@@ -18,7 +18,8 @@ report_failure() {
 }
 
 is_sensitive_path() {
-  local path="${1,,}"
+  local path
+  path="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
   local basename="${path##*/}"
 
   case "/$path/" in

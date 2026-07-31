@@ -41,6 +41,11 @@ entire application directories. For OMP, it installs the tracked settings,
 minimal global context, and MCP denylist. Existing managed files are backed up
 before replacement when their contents differ.
 
+`install.sh` and the pre-commit hook run on Linux and on macOS. Both use only
+Bash 3.2 syntax and the tools that each base system provides, so the Bash 3.2
+that macOS ships is sufficient. `xfce.sh` is the exception: it requires Bash 4
+and a running Xfce desktop.
+
 ## Xfce desktop
 
 `xfce.sh` is a separate tool with its own lifecycle. It is deliberately not
