@@ -555,11 +555,11 @@ The resolved-model badge matters more with per-role levels than it would
 otherwise: it reports the level a spawn actually received, which is the only
 direct confirmation that the precedence chain resolved as intended.
 
-Thinking summaries remain enabled at the provider (`omitThinking: false`) but
-hidden in the terminal (`hideThinkingBlock: true`), so reasoning still informs
-the model's own output without occupying the display. The workspace tree remains
-excluded from the system prompt because frequently changing tree content
-increases prompt size and can reduce cache stability.
+Thinking summaries remain enabled at the provider (`omitThinking: false`) and
+visible in the terminal (`hideThinkingBlock: false`). The point is to watch the
+reasoning as it streams, not only to let it inform the output. The workspace
+tree remains excluded from the system prompt because frequently changing tree
+content increases prompt size and can reduce cache stability.
 
 ## Intent: web access
 

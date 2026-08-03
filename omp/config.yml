@@ -108,7 +108,7 @@ compaction:
   idleEnabled: true
   handoffSaveToDisk: true
 doubleEscapeAction: tree
-hideThinkingBlock: true
+hideThinkingBlock: false
 autoResume: false
 textVerbosity: low
 features: 
