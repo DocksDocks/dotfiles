@@ -110,7 +110,6 @@ compaction:
 doubleEscapeAction: tree
 hideThinkingBlock: true
 autoResume: false
-collapseChangelog: true
 textVerbosity: low
 features: 
   unexpectedStopDetection: true
@@ -118,5 +117,6 @@ codexResets:
   autoRedeem: "no"
 startup: 
   quiet: true
+  changelogMode: summary
 tools: 
   approvalMode: yolo
