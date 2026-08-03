@@ -15,7 +15,7 @@ tui:
   tight: false
 defaultThinkingLevel: xhigh
 tier: 
-  openai: auto
+  openai: none
   anthropic: none
 advisor: 
   enabled: true

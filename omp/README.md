@@ -372,6 +372,39 @@ Sources:
 - [OMP settings-aware provider streaming](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/settings-stream-fn.ts)
 - [OMP retry policy](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/non-compaction-retry-policy.md)
 
+## Intent: no explicit service tier
+
+```yaml
+tier:
+  openai: none
+  anthropic: none
+```
+
+`tier.openai` becomes the `service_tier` field of the request, for OpenAI and
+OpenAI-Codex models. Every OpenAI-family role in this configuration resolves to
+an `openai-codex/*` model, and the Codex endpoint rejects `auto` with
+`Unsupported service_tier: auto (code=invalid_request_error)`. Many subagent
+sessions hit that rejection on 2026-08-03.
+
+The `task`, `smol`, `commit`, and `tiny` roles all resolve to Codex models, and
+`tier.subagent` defaults to `inherit`. Under the earlier `auto`, every
+Codex-backed subagent therefore failed before its first turn, and the retry
+path gave up after one attempt.
+
+`none` makes OMP omit `service_tier` from the request and accept the
+server-side default. `default` is not a safe substitute. The rejection message
+shows that the endpoint validates `service_tier` against an allowlist, and no
+OMP or OpenAI source confirms that `default` is on it. Omission is the only
+outcome the allowlist cannot reject.
+
+`anthropic: none` stays unchanged because `priority` is the only other accepted
+value for that family.
+
+Sources:
+
+- [OMP settings definitions](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/config/settings-schema.ts)
+- [OMP provider request construction](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/ai/src/stream.ts)
+
 ## Intent: aggressive but bounded delegation
 
 ```yaml
