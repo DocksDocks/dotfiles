@@ -105,16 +105,28 @@ context, and MCP policy with:
 ./install.sh omp
 ```
 
-The installer copies `omp/AGENTS.md`, `omp/config.yml`, and `omp/mcp.json` to
-the corresponding files under `~/.omp/agent/` with mode `0600`, and backs up
-any differing existing file. Local runtime files such as `.env`, `agent.db`,
-`secrets.yml`, sessions, logs, and caches must not be copied into the
-repository.
+The installer handles the three tracked files under `~/.omp/agent/` as
+follows:
 
-`omp/config.yml` is kept byte-identical to the installed
-`~/.omp/agent/config.yml`, including the serializer's trailing spaces after
-mapping keys. That makes `./install.sh omp` a no-op while the two agree, so any
-reported difference is real drift rather than formatting noise.
+- `AGENTS.md` and `mcp.json` remain managed files: each is replaced by the
+  repository copy, with the existing file backed up when its contents differ.
+- `config.yml` is recursively overlaid onto the destination. Mapping values
+  merge at every depth, so destination-only mapping keys remain, including
+  custom `modelRoles` entries and destination-only keys under `task`.
+  Repository scalar values replace matching destination values. Repository
+  lists replace matching destination lists as complete values; their existing
+  elements are not preserved.
+
+The resulting files are installed with mode `0600`, and `config.yml` is backed
+up only when the merged output changes the destination. Local runtime files such
+as `.env`, `agent.db`, `secrets.yml`, sessions, logs, and caches must not be
+copied into the repository.
+
+The standalone installer regression check can be run from the repository root:
+
+```bash
+bash tests/install-omp.sh
+```
 
 ## Intent: model and reasoning depth per role
 

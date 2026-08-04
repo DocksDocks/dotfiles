@@ -37,9 +37,11 @@ Enable only the repository safeguards:
 ```
 
 The installer copies explicitly listed files rather than linking or copying
-entire application directories. For OMP, it installs the tracked settings,
-minimal global context, and MCP denylist. Existing managed files are backed up
-before replacement when their contents differ.
+entire application directories. For OMP, `AGENTS.md` and `mcp.json` remain
+managed files that are replaced (with a backup when their contents differ);
+`config.yml` is recursively overlaid so repository mappings merge into the
+destination while destination-only mapping keys remain. Existing managed files
+are backed up before a changed result replaces them.
 
 `install.sh` and the pre-commit hook run on Linux and on macOS. Both use only
 Bash 3.2 syntax and the tools that each base system provides, so the Bash 3.2
