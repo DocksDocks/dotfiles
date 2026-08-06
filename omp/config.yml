@@ -77,6 +77,7 @@ providers:
 retry: 
   fallbackChains: 
     default: 
+      - anthropic/claude-opus-5:medium
       - openai-codex/gpt-5.6-sol:high
     advisor: 
       - openai-codex/gpt-5.6-sol:high
@@ -86,6 +87,9 @@ retry:
       - openai-codex/gpt-5.6-sol:high
     openai-codex/gpt-5.6-luna: 
       - openai-codex/gpt-5.6-sol:medium
+      - anthropic/claude-opus-5:medium
+    openai-codex/gpt-5.6-sol: 
+      - anthropic/claude-opus-5:medium
     anthropic/claude-opus-5: 
       - openai-codex/gpt-5.6-sol:high
 omitThinking: false

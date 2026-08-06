@@ -367,6 +367,7 @@ Every entry here is therefore suffixed:
 retry:
   fallbackChains:
     default:
+      - anthropic/claude-opus-5:medium
       - openai-codex/gpt-5.6-sol:high
     advisor:
       - openai-codex/gpt-5.6-sol:high
@@ -376,12 +377,33 @@ retry:
       - openai-codex/gpt-5.6-sol:high
     openai-codex/gpt-5.6-luna:
       - openai-codex/gpt-5.6-sol:medium
+      - anthropic/claude-opus-5:medium
+    openai-codex/gpt-5.6-sol:
+      - anthropic/claude-opus-5:medium
     anthropic/claude-opus-5:
       - openai-codex/gpt-5.6-sol:high
 ```
 
-Model-specific keys take precedence over role and default chains. The policy
-preserves the purpose of each role across a provider outage:
+Resolution picks the chain that owns the failing model by specificity: the
+exact `provider/model-id` key first, then a `provider/*` wildcard, then the
+role chain, then `default`. Two consequences shape the table above.
+
+The `default` chain is not the chain for the `default` role. It is the
+catch-all for every role that declares no chain of its own, and `task` is such
+a role. A Sol failure in a delegated subagent therefore lands here, which is
+why the first entry names an Anthropic model. That entry is not a self-loop
+for the `default` role: an Opus 5 failure matches the exact
+`anthropic/claude-opus-5` key first and never reaches it.
+
+Every chain must be able to leave the provider it started on. A quota wall is
+provider-wide, so a chain that recovers Sol onto Sol is a dead end. The two
+model-specific keys make the escape bidirectional: Anthropic failures move to
+Sol, and Sol failures move to Opus 5. Luna lists Sol first, because a single
+model outage is more common than a provider outage, and Opus 5 second, for the
+case where the whole Codex provider is unavailable. The retry policy skips
+selectors that are still cooling down, so the two directions cannot ping-pong.
+
+The policy preserves the purpose of each role across a provider outage:
 
 - Opus-led work — `default`, `advisor`, `designer` — recovers to Sol-high,
   which scores 55.9 against Opus 5-medium's 56.3, a gap of 0.4 index points.
@@ -395,7 +417,7 @@ preserves the purpose of each role across a provider outage:
 - The model-specific Opus 5 key covers every Opus-led role, including `plan`
   and `vision`, which declare no role chain of their own. It takes precedence
   over the role chains, so all Opus 5 work recovers to Sol-high.
-- Luna failures recover to Sol-medium. Sol-medium scores 53.6 against
+- Luna failures recover to Sol-medium first. Sol-medium scores 53.6 against
   Luna-high's 46.1 and reaches the first answer token in 6.19s against
   10.43s for Luna-high. A mechanical role therefore degrades into a quicker,
   stronger, costlier model instead of a slower one. Sol costs twenty-five
