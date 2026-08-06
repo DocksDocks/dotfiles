@@ -136,7 +136,7 @@ reasoning that model spends.
 
 | Roles | Selector | Intent |
 | --- | --- | --- |
-| `default`, `advisor`, `designer` | `anthropic/claude-opus-5:xhigh` | Primary session, advisor channel, and design specialization |
+| `default`, `advisor`, `designer` | `anthropic/claude-opus-5:medium` | Primary session, advisor channel, and design specialization |
 | `slow`, `plan` | `anthropic/claude-opus-5:max` | Difficult investigations, the bundled reviewer, and planning |
 | `vision` | `anthropic/claude-opus-5:high` | Image inspection; dormant while the active model accepts images |
 | `task` | `openai-codex/gpt-5.6-sol:high` | Delegated implementation |
@@ -146,11 +146,13 @@ reasoning that model spends.
 The bundled OMP reviewer resolves through the `slow` role, while the general
 task worker resolves through `task`.
 
-`slow` and `plan` sit one tier above the other Opus roles because their output
-is consumed as a decision rather than as a draft: a review or a plan is rarely
+`slow` and `plan` sit at the top of the ladder because their output is consumed
+as a decision rather than as a draft: a review or a plan is rarely
 re-litigated, so the extra latency buys something the next turn cannot recover.
-`default` stays at `xhigh` because the primary session pays that cost on every
-single turn.
+`default`, `advisor`, and `designer` sit at `medium` because the primary
+session pays that cost on every single turn. Measured against `xhigh`, `medium`
+gives up 3.8 index points, returns the first answer token in 6.43s instead of
+26.27s, and costs 40 percent as much per task.
 
 `vision` is dormant under this configuration and is set for the case where it
 is not. It backs the `inspect_image` tool, which delegates an image to a
@@ -171,6 +173,53 @@ Sources:
 - [OMP model and provider configuration](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/models.md)
 - [OMP bundled agent definitions](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/task/agents.ts)
 - [OMP inspect_image tool](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/tools/inspect_image.md)
+
+## Reference: measured model tiers
+
+This table carries every effort tier of every model this configuration uses,
+not only the tiers currently selected. A change of effort therefore needs no
+new measurement round.
+
+Artificial Analysis reports the following, retrieved 2026-08-06 against
+Intelligence Index v4.1. Every model listed has a 1,000,000-token context
+window. "Time to first answer token" includes model thinking time. "Cost per
+task" is the weighted average cost of one Intelligence Index task.
+
+| Model (tier) | Intelligence Index | Output speed | Time to first answer token | Cost per task | Price in / out per 1M |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Opus 5 low | 50.6 | 52.3 tok/s | 2.76s | $0.43 | $5.00 / $25.00 |
+| Opus 5 medium | 56.3 | 54.6 tok/s | 6.43s | $0.72 | $5.00 / $25.00 |
+| Opus 5 high | 58.9 | 53.4 tok/s | 11.73s | $1.23 | $5.00 / $25.00 |
+| Opus 5 xhigh | 60.1 | 54.8 tok/s | 26.27s | $1.80 | $5.00 / $25.00 |
+| Opus 5 max | 60.7 | 53.7 tok/s | 34.56s | $2.34 | $5.00 / $25.00 |
+| Sol low | 49.4 | 63.1 tok/s | 3.15s | $0.24 | $5.00 / $30.00 |
+| Sol medium | 53.6 | 60.7 tok/s | 6.19s | $0.39 | $5.00 / $30.00 |
+| Sol high | 55.9 | 63.5 tok/s | 14.07s | $0.55 | $5.00 / $30.00 |
+| Sol xhigh | 57.7 | 62.9 tok/s | 26.17s | $0.83 | $5.00 / $30.00 |
+| Sol max | 58.9 | 64.1 tok/s | 99.36s | $1.23 | $5.00 / $30.00 |
+| Luna low | 33.3 | 137.1 tok/s | 1.55s | $0.009 | $0.20 / $1.20 |
+| Luna medium | 38.1 | 155.7 tok/s | 3.66s | $0.011 | $0.20 / $1.20 |
+| Luna high | 46.1 | 175.0 tok/s | 10.43s | $0.022 | $0.20 / $1.20 |
+| Luna xhigh | 49.1 | 167.8 tok/s | 26.43s | $0.032 | $0.20 / $1.20 |
+| Luna max | 51.2 | 184.5 tok/s | 72.86s | $0.047 | $0.20 / $1.20 |
+
+The Intelligence Index is a weighted composite of nine evaluations — agentic
+work 34%, coding 24%, scientific reasoning 24%, general 18% — measured
+text-only and in English. Artificial Analysis reports an aggregate 95%
+confidence interval under ±1%, with wider intervals for individual evaluations,
+and cautions that the aggregate may not transfer to any specific use case.
+These figures compare benchmark behavior; they do not predict the duration of
+an individual coding task.
+
+Sources:
+
+- [Claude Opus 5 (medium)](https://artificialanalysis.ai/models/claude-opus-5-medium)
+- [Claude Opus 5 (xhigh)](https://artificialanalysis.ai/models/claude-opus-5-xhigh)
+- [Claude Opus 5 (max)](https://artificialanalysis.ai/models/claude-opus-5)
+- [GPT-5.6 Sol (high)](https://artificialanalysis.ai/models/gpt-5-6-sol-high)
+- [GPT-5.6 Sol (medium)](https://artificialanalysis.ai/models/gpt-5-6-sol-medium)
+- [GPT-5.6 Luna (high)](https://artificialanalysis.ai/models/gpt-5-6-luna-high)
+- [Artificial Analysis intelligence methodology](https://artificialanalysis.ai/methodology/intelligence-benchmarking)
 
 ## Intent: reasoning levels chosen explicitly, not inherited
 
@@ -194,8 +243,10 @@ Three consequences drive this configuration.
 `scoped.thinkingLevel ?? defaultThinkingSelector`, so a role's suffix wins and
 the global setting covers only an unsuffixed selector — a manual `/model`
 switch, say. That path is `findInitialModel`, which serves the main session
-alone; the subagent resolver never reads the setting at all. With `default`
-suffixed at `:xhigh`, `defaultThinkingLevel: xhigh` is currently decorative.
+alone; the subagent resolver never reads the setting at all. Every role
+except `smol` now carries an explicit suffix at `medium`, `high`, or `max`.
+Every agent backed by `smol` declares its own thinking level.
+`defaultThinkingLevel: high` is still present, and it remains decorative.
 
 **An explicit suffix overrides an agent's own preference**, and that cuts both
 ways. The bundled `task` agent declares `thinkingLevel: auto` and `sonic`
@@ -220,27 +271,35 @@ is therefore fixed before a spawn starts — by the role's suffix, or by the
 agent's own frontmatter where the role leaves the level open. Both are
 properties of the work being delegated; neither is the caller's per-call guess.
 
-### `xhigh` and `max` are genuinely different on these models
+### The adaptive tiers are genuinely different on these models
 
 Claude Opus 5 is an Anthropic *adaptive* thinking model: any Anthropic-family
-model at generation 4.6 or newer resolves to `anthropic-adaptive` control mode,
-and Opus 4.7+/Sonnet 5+/Fable 5+ expose the full five-tier scale. Adaptive
-requests send a wire `effort` string and no token budget, and the adaptive
-effort ladder is wire-exact — no remapping — so `:xhigh` and `:max` transmit
-different values.
+model at generation 4.6 or newer resolves to `anthropic-adaptive` control
+mode. Adaptive requests send a wire `effort` string and no token budget, and
+the adaptive effort ladder is wire-exact — no remapping — so `:medium`,
+`:high`, and `:max` each transmit a different value.
+
+The five-tier scale hinges on a version threshold in the OMP source, not on
+a model this configuration runs. In `model-thinking.ts`,
+`anthropicModelHasRealXHighEffort` returns
+`isAnthropicAdaptiveGenAtLeast(parsedModel, "4.7")`. Models at or above that
+cutoff receive the five-tier `low`/`medium`/`high`/`xhigh`/`max` ladder;
+Opus and Sonnet 4.6 stay on a four-tier ladder without `xhigh`. Opus 5 sits
+above the cutoff, so all five tiers are live even though this configuration
+selects only three of them.
 
 This is worth stating because the `thinkingBudgets.*` settings invite the
-opposite conclusion: `thinkingBudgets.xhigh` and `thinkingBudgets.max` share
-the default `32768`, as does the built-in `ANTHROPIC_THINKING` table. Those
-budgets apply to *budget-mode* models only. On Opus 5 the budget is computed
-and then discarded by the adaptive branch, so raising `thinkingBudgets.max`
+opposite conclusion: they read as if a token budget defined each tier. Those
+budgets apply to *budget-mode* models only. On Opus 5 the adaptive branch
+computes the budget and then discards it, so raising `thinkingBudgets.max`
 would change nothing here. The `openai-codex` models are distinct for a
-different reason: they emit `reasoning.effort` as an enum, mapped `xhigh` and
-`max` to separate wire tiers.
+different reason: they emit `reasoning.effort` as an enum, with each tier
+mapped to a separate wire value.
 
-Artificial Analysis measures the two Opus tiers as separate entries, which
-corroborates the source reading: index 60 at `xhigh` against 61 at `max`, with
-time-to-first-token rising from 39.35s to 67.72s.
+Artificial Analysis corroborates the source reading: the five Opus 5 tiers
+measure as five distinct points. The Intelligence Index climbs from 50.6
+through 56.3, 58.9, and 60.1 to 60.7. Time to first answer token rises from
+2.76s to 34.56s. See `## Reference: measured model tiers` for the full table.
 
 Sources:
 
@@ -269,61 +328,32 @@ model to agents that set their own, as described above. The model is chosen for
 price and throughput; where this configuration does pick a level, it picks the
 point on the ladder where reasoning is still nearly free in latency terms.
 
-Artificial Analysis reports the following, retrieved 2026-07-28:
+All measured figures live in `## Reference: measured model tiers`; this
+section cites only the ones the argument needs.
 
-| Model (tier) | Intelligence Index | Output speed | Time to first token | Price in / out per 1M |
-| --- | ---: | ---: | ---: | ---: |
-| Luna low | 33 | 173.9 tok/s | 1.55s | $1.00 / $6.00 |
-| Luna medium | 38 | 199.5 tok/s | 2.31s | $1.00 / $6.00 |
-| Luna high | 46 | 203.1 tok/s | 8.01s | $1.00 / $6.00 |
-| Luna xhigh | 49 | 189.1 tok/s | 34.45s | $1.00 / $6.00 |
-| Luna max | 51 | 200.8 tok/s | 139.79s | $1.00 / $6.00 |
-| Sol low | 49 | 79.5 tok/s | 3.25s | $5.00 / $30.00 |
-| Sol medium | 54 | 74.1 tok/s | 4.13s | $5.00 / $30.00 |
-| Sol high | 56 | 77.7 tok/s | 10.23s | $5.00 / $30.00 |
-| Sol xhigh | 58 | 81.8 tok/s | 36.36s | $5.00 / $30.00 |
-| Opus 5 high | 59 | 54.0 tok/s | 18.28s | $5.00 / $25.00 |
-| Opus 5 xhigh | 60 | 53.7 tok/s | 39.35s | $5.00 / $25.00 |
-| Opus 5 max | 61 | 53.5 tok/s | 67.72s | $5.00 / $25.00 |
-| Fable 5 | 60 | 73.1 tok/s | 197.59s | $10.00 / $50.00 |
+The case for Luna-high is that it is the knee of the curve. It scores 46.1 —
+12.8 points above `low` at 33.3, and only 3.0 below `xhigh` at 49.1. Luna
+costs $0.20 / $1.20 per 1M tokens against $5.00 / $30.00 for Sol, one
+twenty-fifth of the Sol input price. Every Luna tier also generates output
+faster than any Sol or Opus 5 tier. Measured against the Intelligence Index
+as a whole, Luna-high costs $0.022 per task where Sol-max costs $1.23 and
+Opus 5-max costs $2.34.
 
-The case for Luna-high is that it is the knee of the curve. It scores 46 —
-thirteen points above `low`, and only three below `xhigh` — while costing a
-fifth of Sol per token, generating output faster than any other Luna tier at
-203.1 tok/s, and reaching the first token in 8.01s. Measured against the
-Intelligence Index as a whole, Luna-high costs $0.12 per task where Sol-max
-costs $1.54 and Opus 5-max costs $2.03.
+Time to first answer token is why the ladder stops here. It includes thinking
+time. On Luna it does not rise smoothly: 1.55s at `low`, 3.66s at `medium`,
+10.43s at `high`, then 26.43s at `xhigh` and 72.86s at `max`. The step from
+`high` to `xhigh` costs 16 seconds and buys 3.0 index points. `commit` and
+`tiny` run in the foreground of an otherwise finished action. There, that
+delay would be the dominant term, and nothing about the higher score
+shortens it.
 
-The third column is why the ladder stops here. Time to first token includes
-thinking time, and on Luna it does not rise smoothly: 1.55s at `low`, 2.31s at
-`medium`, 8.01s at `high`, then 34.45s at `xhigh` and 139.79s at `max`. The
-step from `high` to `xhigh` costs 26 seconds and buys three index points. For
-`commit` and `tiny`, which run in the foreground of an otherwise finished
-action, that delay would be the dominant term and nothing about the higher
-score shortens it.
-
-`high` is also the cheaper and terser tier outright: 37M output tokens across
-the Intelligence Index against 67M at `xhigh`, so the extra reasoning at
-`xhigh` is spent on length as much as on quality. A workflow that wants these
-roles to feel instantaneous should drop to `medium`, which returns to 2.31s for
-an eight-point loss.
-
-The Intelligence Index is a weighted composite of nine evaluations — agentic
-work 34%, coding 24%, scientific reasoning 24%, general 18% — measured
-text-only and in English. Artificial Analysis reports an aggregate 95%
-confidence interval under ±1%, with wider intervals for individual evaluations,
-and cautions that the aggregate may not transfer to any specific use case.
-These figures compare benchmark behavior; they do not predict the duration of
-an individual coding task.
+`high` is also the cheaper tier outright: $0.022 per task against $0.032 at
+`xhigh`. A workflow that wants these roles to feel instantaneous should drop
+to `medium`. That tier returns the first answer token in 3.66s and scores
+38.1, an 8.0-point drop from `high`.
 
 Sources:
 
-- [GPT-5.6 Luna (low)](https://artificialanalysis.ai/models/gpt-5-6-luna-low)
-- [GPT-5.6 Luna (high)](https://artificialanalysis.ai/models/gpt-5-6-luna-high)
-- [GPT-5.6 Sol (medium)](https://artificialanalysis.ai/models/gpt-5-6-sol-medium)
-- [Claude Opus 5 (xhigh)](https://artificialanalysis.ai/models/claude-opus-5-xhigh)
-- [Claude Opus 5 (max)](https://artificialanalysis.ai/models/claude-opus-5)
-- [Artificial Analysis intelligence methodology](https://artificialanalysis.ai/methodology/intelligence-benchmarking)
 - [OMP commit model selection](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/commit/model-selection.ts)
 
 ## Intent: predictable fallback behavior
@@ -337,35 +367,44 @@ Every entry here is therefore suffixed:
 retry:
   fallbackChains:
     default:
-      - anthropic/claude-fable-5:xhigh
-      - openai-codex/gpt-5.6-sol:xhigh
+      - openai-codex/gpt-5.6-sol:high
     advisor:
-      - openai-codex/gpt-5.6-sol:xhigh
+      - openai-codex/gpt-5.6-sol:high
     slow:
-      - openai-codex/gpt-5.6-sol:xhigh
+      - openai-codex/gpt-5.6-sol:high
     designer:
-      - openai-codex/gpt-5.6-sol:xhigh
+      - openai-codex/gpt-5.6-sol:high
     openai-codex/gpt-5.6-luna:
       - openai-codex/gpt-5.6-sol:medium
-    anthropic/claude-fable-5:
-      - openai-codex/gpt-5.6-sol:xhigh
+    anthropic/claude-opus-5:
+      - openai-codex/gpt-5.6-sol:high
 ```
 
 Model-specific keys take precedence over role and default chains. The policy
 preserves the purpose of each role across a provider outage:
 
-- Opus-led work — `default`, `advisor`, `slow`, `designer` — recovers to
-  Sol-xhigh, which scores 58 against Opus 5-xhigh's 60. A provider-level
-  Anthropic failure leaves review, investigation, and design on a comparable
-  model from the other provider rather than on a cheaper tier.
-- The `default` role recovers first to Fable-xhigh, keeping the primary session
-  on a 1M-context Anthropic model; a Fable failure then recovers to Sol-xhigh
-  through the model-specific chain.
-- Luna failures recover to Sol-medium. Sol-medium scores 54 against Luna-high's
-  46 and answers faster in absolute terms — 4.13s to first token against
-  8.01s — so a mechanical role degrades into a quicker, stronger, costlier
-  model instead of a slower one. Sol is five times the token price, which is
-  acceptable for the retry path and would not be for steady state.
+- Opus-led work — `default`, `advisor`, `designer` — recovers to Sol-high,
+  which scores 55.9 against Opus 5-medium's 56.3, a gap of 0.4 index points.
+  Recovery is close to lossless in measured intelligence. A provider-level
+  Anthropic failure leaves the primary session, the advisor channel, review,
+  and design on an effectively equivalent model from the other provider. The
+  work does not drop to a cheaper tier. `slow` and `plan` run at Opus 5-max,
+  which scores 60.7, so those roles give up measurable ground on recovery.
+  The configuration accepts that loss because the alternative is no answer
+  at all.
+- The model-specific Opus 5 key covers every Opus-led role, including `plan`
+  and `vision`, which declare no role chain of their own. It takes precedence
+  over the role chains, so all Opus 5 work recovers to Sol-high.
+- Luna failures recover to Sol-medium. Sol-medium scores 53.6 against
+  Luna-high's 46.1 and reaches the first answer token in 6.19s against
+  10.43s for Luna-high. A mechanical role therefore degrades into a quicker,
+  stronger, costlier model instead of a slower one. Sol costs twenty-five
+  times the Luna token price: $5.00 against $0.20 per 1M input tokens. That
+  price is acceptable on the retry path and would not be acceptable in
+  steady state.
+
+See `## Reference: measured model tiers` for the full set of measured
+figures.
 
 Anthropic server-side fallback is disabled:
 
@@ -375,8 +414,9 @@ providers:
     serverSideFallback: false
 ```
 
-This prevents a classifier-blocked Fable request from being silently retried on
-Opus. Model changes remain controlled by the explicit OMP fallback chains.
+This prevents a classifier-blocked Anthropic request from being silently
+retried on a different Anthropic model. Model changes remain controlled by the
+explicit OMP fallback chains.
 
 Sources:
 

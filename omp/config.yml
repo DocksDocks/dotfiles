@@ -13,7 +13,7 @@ terminal:
 tui: 
   textSizing: false
   tight: false
-defaultThinkingLevel: xhigh
+defaultThinkingLevel: high
 tier: 
   openai: none
   anthropic: none
@@ -34,14 +34,14 @@ task:
   maxRecursionDepth: 3
 modelRoles: 
   smol: openai-codex/gpt-5.6-luna
-  advisor: anthropic/claude-opus-5:xhigh
-  designer: anthropic/claude-opus-5:xhigh
+  advisor: anthropic/claude-opus-5:medium
+  designer: anthropic/claude-opus-5:medium
   plan: anthropic/claude-opus-5:max
   commit: openai-codex/gpt-5.6-luna:high
   task: openai-codex/gpt-5.6-sol:high
   vision: anthropic/claude-opus-5:high
   tiny: openai-codex/gpt-5.6-luna:high
-  default: anthropic/claude-opus-5:xhigh
+  default: anthropic/claude-opus-5:medium
   slow: anthropic/claude-opus-5:max
 display: 
   shimmer: classic
@@ -77,18 +77,17 @@ providers:
 retry: 
   fallbackChains: 
     default: 
-      - anthropic/claude-fable-5:xhigh
-      - openai-codex/gpt-5.6-sol:xhigh
+      - openai-codex/gpt-5.6-sol:high
     advisor: 
-      - openai-codex/gpt-5.6-sol:xhigh
+      - openai-codex/gpt-5.6-sol:high
     slow: 
-      - openai-codex/gpt-5.6-sol:xhigh
+      - openai-codex/gpt-5.6-sol:high
     designer: 
-      - openai-codex/gpt-5.6-sol:xhigh
+      - openai-codex/gpt-5.6-sol:high
     openai-codex/gpt-5.6-luna: 
       - openai-codex/gpt-5.6-sol:medium
-    anthropic/claude-fable-5: 
-      - openai-codex/gpt-5.6-sol:xhigh
+    anthropic/claude-opus-5: 
+      - openai-codex/gpt-5.6-sol:high
 omitThinking: false
 includeWorkspaceTree: false
 autocompleteMaxVisible: 10
