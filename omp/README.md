@@ -472,7 +472,7 @@ retry:
       - openai-codex/gpt-5.6-sol:medium
       - anthropic/claude-opus-5:medium
     openai-codex/gpt-5.6-sol:
-      - anthropic/claude-opus-5:medium
+      - anthropic/claude-opus-5:high
     anthropic/claude-opus-5:
       - openai-codex/gpt-5.6-sol:high
 ```
@@ -481,12 +481,12 @@ Resolution picks the chain that owns the failing model by specificity: the
 exact `provider/model-id` key first, then a `provider/*` wildcard, then the
 role chain, then `default`. Two consequences shape the table above.
 
-The `default` chain is not the chain for the `default` role. It is the
-catch-all for every role that declares no chain of its own, and `task` is such
-a role. A Sol failure in a delegated subagent therefore lands here, which is
-why the first entry names an Anthropic model. That entry is not a self-loop
-for the `default` role: an Opus 5 failure matches the exact
-`anthropic/claude-opus-5` key first and never reaches it.
+The `default` chain is not the chain for the `default` role. OMP copies it
+onto every role that declares no chain of its own. It decides a recovery only
+when no model key matches, because the exact `provider/model-id` keys are
+tested first. Every model this configuration selects owns such a key, so the
+`default` chain covers a model picked by hand with `/model`. Its first entry
+names an Anthropic model, so that path also leaves the Codex provider.
 
 Every chain must be able to leave the provider it started on. A quota wall is
 provider-wide, so a chain that recovers Sol onto Sol is a dead end. The two
@@ -505,10 +505,21 @@ The policy preserves the purpose of each role across a provider outage:
   configuration accepts that loss because the alternative is no answer at all,
   and the recovered work still runs on a top-tier model rather than a cheaper
   one.
-- `advisor` already runs on Sol, so it needs no role chain: a Sol failure
-  matches the exact `openai-codex/gpt-5.6-sol` key first and recovers to Opus
-  5-medium. The advisor channel therefore keeps its defining property across
-  an outage — it reviews the session from a different model family.
+- `advisor` recovers to Opus 5-high. The advisor channel therefore keeps its
+  defining property across an outage — it reviews the session from a different
+  model family. The level is `high` because a review must not become weaker
+  than the channel it replaces. Opus 5-medium scores 56.3 against Sol-high's
+  55.9, a gap of 0.4 index points. Opus 5-high scores 58.9, and its higher
+  price applies only on the retry path: $1.23 per task against $0.72, and
+  11.73s to the first answer token against 6.43s. The exact
+  `openai-codex/gpt-5.6-sol` key already produces that recovery, because
+  specificity puts model keys ahead of role keys, and the same key serves
+  `task` at Sol-high so delegated work recovers at the same depth. The role
+  chain is tracked anyway. Without it, moving the advisor to a model that has
+  no exact key of its own leaves the role chain OMP writes when a fallback is
+  set through the interface, and that chain names the advisor's own model. The
+  effective chain then drops the duplicate entry, ends at length one, and
+  yields no candidate, so the advisor loses its fallback with no warning.
 - The model-specific Opus 5 key covers every Opus-led role, including `plan`
   and `vision`, which declare no role chain of their own. It takes precedence
   over the role chains, so all Opus 5 work recovers to Sol-high.
