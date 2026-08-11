@@ -185,7 +185,9 @@ suffix. It prefers the MagicDNS name because it survives an address change.
 
 The installer supports Linux and macOS. The `remote` target requires `curl` and
 Tailscale. On macOS, the installer also checks the Tailscale application bundle
-when `PATH` does not provide the CLI.
+when `PATH` does not provide the CLI. That bundle executable can start either
+the graphical application or the CLI. The installer therefore sets
+`TAILSCALE_BE_CLI=1`, which forces CLI mode and prevents a GUI launch.
 
 If `curl` or the Tailscale CLI is missing, the target prints a message that
 names the missing prerequisite. The target then fails. It does not report

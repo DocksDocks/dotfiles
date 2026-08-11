@@ -330,9 +330,11 @@ detect_relay_url() {
     printf 'Cannot probe Tailscale peers: the Tailscale CLI is not available\n' >&2
     return 2
   fi
-  status_output="$("$tailscale" status 2>/dev/null)" || return 1
+  # The macOS bundle executable chooses between the GUI and the CLI.
+  # TAILSCALE_BE_CLI forces CLI mode and prevents a GUI launch. Linux ignores it.
+  status_output="$(TAILSCALE_BE_CLI=1 "$tailscale" status 2>/dev/null)" || return 1
   suffix="$(
-    "$tailscale" status --json 2>/dev/null |
+    TAILSCALE_BE_CLI=1 "$tailscale" status --json 2>/dev/null |
       grep -m1 '"MagicDNSSuffix"' |
       sed -e 's/.*: *"//' -e 's/".*//'
   )" || true
