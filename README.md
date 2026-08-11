@@ -24,6 +24,10 @@ cd dotfiles
 ./install.sh
 ```
 
+The plain `./install.sh` command runs the `all` target. It already installs the
+`remote-pi` plugin and configures the relay. A relay problem prints a notice and
+never blocks the rest of the install.
+
 Install only one configuration:
 
 ```bash
@@ -37,32 +41,46 @@ Install the `pi-intercom` npm plugin and provision its broker configuration
 ./install.sh intercom
 ```
 
-Install the `remote-pi` npm plugin:
+Run only the `remote-pi` installation and relay configuration:
 
 ```bash
 ./install.sh remote
 ```
 
-The target discovers its relay automatically. It requires `curl` and Tailscale.
-On macOS, the installer also checks the Tailscale application bundle when
-`PATH` does not provide the CLI.
+The `remote` target supports Linux and macOS. It requires `curl` and uses
+Tailscale for relay discovery. On macOS, the installer also checks the Tailscale
+application bundle when `PATH` does not provide the CLI.
 
-If `curl` or the Tailscale CLI is missing, the target prints a message that
-names the missing prerequisite. The target then fails. It does not report
-success. If no relay answers, the target keeps an existing configuration file
-and continues successfully.
+Without `curl`, the installer cannot probe any relay. The `remote` target
+therefore fails.
 
-If no relay answers and no configuration file exists, the target fails.
-Without configuration, `remote-pi` falls back to a public community relay. The
+When the Tailscale CLI is absent, the installer detects the operating system
+with `uname`. It prints a warning that names the matching install command. The
+warning states that missing configuration makes `remote-pi` use the public
+community relay. The installer leaves the relay configuration unchanged. It
+continues successfully. It does not fail.
+
+On Linux, the warning prints this command:
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+```
+
+On macOS, the warning prints the same script command. That script opens the Mac
+App Store page. The warning also names `brew install --cask tailscale` as an
+alternative.
+
+When Tailscale is present but no relay answers, the target checks for existing
+configuration. It keeps an existing file and continues successfully. If no file
+exists, the target fails.
+
+Without configuration, `remote-pi` would use the public community relay. The
 installer refuses this silent substitution.
 
 The `intercom` target is strict and fails when a prerequisite or the npm plugin
 install fails. The default `all` target installs the plugin when `omp` and `bun`
 are present, but warns and continues with hooks and tracked configuration when
 the plugin cannot be installed.
-
-A relay problem never blocks the rest of the `all` install. The installer
-prints a notice and continues.
 
 Enable only the repository safeguards:
 

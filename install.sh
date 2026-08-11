@@ -282,6 +282,27 @@ tailscale_cmd() {
   return 1
 }
 
+# The official script detects the operating system and selects the correct
+# package manager. On macOS it opens the Mac App Store page.
+tailscale_install_hint() {
+  printf 'Tailscale is not installed, so the installer cannot find a relay\n' >&2
+
+  case "$(uname -s 2>/dev/null)" in
+    Darwin)
+      printf 'Install it from the Mac App Store, or run one of these commands:\n' >&2
+      printf '  brew install --cask tailscale\n' >&2
+      printf '  curl -fsSL https://tailscale.com/install.sh | sh\n' >&2
+      ;;
+    Linux)
+      printf 'Install it with this command:\n' >&2
+      printf '  curl -fsSL https://tailscale.com/install.sh | sh\n' >&2
+      ;;
+    *)
+      printf 'Install it from https://tailscale.com/download\n' >&2
+      ;;
+  esac
+}
+
 relay_health_ok() {
   local base_url="$1"
   local health
@@ -326,9 +347,9 @@ detect_relay_url() {
     return 2
   fi
 
+  # Status 3 marks an absent Tailscale CLI. The caller warns and continues.
   if ! tailscale="$(tailscale_cmd)"; then
-    printf 'Cannot probe Tailscale peers: the Tailscale CLI is not available\n' >&2
-    return 2
+    return 3
   fi
   # The macOS bundle executable chooses between the GUI and the CLI.
   # TAILSCALE_BE_CLI forces CLI mode and prevents a GUI launch. Linux ignores it.
@@ -415,11 +436,21 @@ install_remote_config() {
 
   detect_status=0
   relay_url="$(detect_relay_url)" || detect_status=$?
-  # Status 2 means a prerequisite is missing. Report that as a failure.
+  # Status 2 means curl is missing, so no probe is possible at all.
   # Never claim a successful install while remote-pi stays unconfigured.
   if [[ "$detect_status" -eq 2 ]]; then
-    printf 'Install curl and Tailscale, then run this target again\n' >&2
+    printf 'Install curl, then run this target again\n' >&2
     return 1
+  fi
+  # Status 3 means Tailscale is missing. Warn, then continue.
+  if [[ "$detect_status" -eq 3 ]]; then
+    tailscale_install_hint
+    if [[ ! -f "$(remote_dir)/config.json" ]]; then
+      printf 'Until a relay is configured, remote-pi uses the public community relay\n' >&2
+    else
+      printf 'The existing remote-pi configuration is unchanged\n' >&2
+    fi
+    return 0
   fi
   if [[ "$detect_status" -ne 0 ]]; then
     printf 'Cannot detect the remote-pi relay on local or Tailscale peers\n' >&2

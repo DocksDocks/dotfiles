@@ -98,6 +98,10 @@ Ensure `$HOME/.local/bin` is on `PATH`.
 `curl` does not set the `com.apple.quarantine` attribute. macOS Gatekeeper
 therefore does not block the downloaded binary.
 
+The plain `./install.sh` command runs the `all` target. It already installs the
+`remote-pi` plugin and configures the relay. A relay problem prints a notice and
+never blocks the rest of the install.
+
 From the dotfiles repository root, install the tracked settings, minimal global
 context, MCP policy, and pi-intercom broker configuration with:
 
@@ -115,14 +119,14 @@ and provision the same broker configuration, run:
 The `intercom` target reaches the network for the plugin install. `bun` must be
 on `PATH` because it runs the broker.
 
-To install the `remote-pi` npm plugin, run:
+To run only the `remote-pi` installation and relay configuration, run:
 
 ```bash
 ./install.sh remote
 ```
 
 The `remote` target discovers its relay automatically. It supports Linux and
-macOS. It requires `curl` and Tailscale.
+macOS. It requires `curl` and uses Tailscale for relay discovery.
 
 The installer handles the three tracked files under `~/.omp/agent/` as
 follows:
@@ -170,9 +174,9 @@ order:
    local sessions working when Tailscale is down.
 3. Otherwise, the installer probes every online Tailscale peer on port `3000`.
    It uses the MagicDNS name of the first peer that answers.
-4. When no relay answers, the installer checks for existing configuration. It
-   keeps an existing file and continues successfully. If no file exists, the
-   target fails.
+4. When Tailscale is present but no relay answers, the installer checks for
+   existing configuration. It keeps an existing file and continues
+   successfully. If no file exists, the target fails.
 
 Without configuration, `remote-pi` falls back to a public community relay. The
 installer refuses this silent substitution.
@@ -184,17 +188,29 @@ The installer uses the raw address only when it cannot read the MagicDNS
 suffix. It prefers the MagicDNS name because it survives an address change.
 
 The installer supports Linux and macOS. The `remote` target requires `curl` and
-Tailscale. On macOS, the installer also checks the Tailscale application bundle
-when `PATH` does not provide the CLI. That bundle executable can start either
-the graphical application or the CLI. The installer therefore sets
+uses Tailscale. On macOS, the installer also checks the Tailscale application
+bundle when `PATH` does not provide the CLI. That bundle executable can start
+either the graphical application or the CLI. The installer therefore sets
 `TAILSCALE_BE_CLI=1`, which forces CLI mode and prevents a GUI launch.
 
-If `curl` or the Tailscale CLI is missing, the target prints a message that
-names the missing prerequisite. The target then fails. It does not report
-success.
+Without `curl`, the installer cannot probe any relay. The `remote` target
+therefore fails.
 
-A relay problem never blocks the rest of the `all` install. The installer
-prints a notice and continues.
+When the Tailscale CLI is absent, the installer detects the operating system
+with `uname`. It prints a warning that names the matching install command. The
+warning states that missing configuration makes `remote-pi` use the public
+community relay. The installer leaves the relay configuration unchanged. It
+continues successfully. It does not fail.
+
+On Linux, the warning prints this command:
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+```
+
+On macOS, the warning prints the same script command. That script opens the Mac
+App Store page. The warning also names `brew install --cask tailscale` as an
+alternative.
 
 The installer applies the URL through `remote-pi set-relay`. This command merges
 the configuration and keeps unrelated keys.
