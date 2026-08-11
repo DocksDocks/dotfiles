@@ -115,6 +115,15 @@ and provision the same broker configuration, run:
 The `intercom` target reaches the network for the plugin install. `bun` must be
 on `PATH` because it runs the broker.
 
+To install the `remote-pi` npm plugin, run:
+
+```bash
+./install.sh remote
+```
+
+The `remote` target discovers its relay automatically. It supports Linux and
+macOS. It requires `curl` and Tailscale.
+
 The installer handles the three tracked files under `~/.omp/agent/` as
 follows:
 
@@ -133,6 +142,10 @@ The separate `omp/intercom.json` is installed as
 extension keeps its runtime files under the Pi agent directory rather than
 under `$HOME/.omp`.
 
+The `remote-pi` plugin stores its configuration at
+`$HOME/.pi/remote/config.json`. The plugin always uses this home-directory path.
+Unlike pi-intercom, `PI_CODING_AGENT_DIR` does not change this path.
+
 The resulting files are installed with mode `0600`, and `config.yml` is backed
 up only when the merged output changes the destination. Local runtime files such
 as `.env`, `agent.db`, `secrets.yml`, sessions, logs, and caches must not be
@@ -143,6 +156,46 @@ The standalone installer regression check can be run from the repository root:
 ```bash
 bash tests/install-omp.sh
 ```
+
+## Intent: automatic relay discovery
+
+A relay URL differs for each network. Users must not commit it to this public
+repository. The installer discovers the URL at install time.
+
+Each probe sends a `GET /health` request. The installer uses this discovery
+order:
+
+1. When `REMOTE_PI_RELAY` is set, the installer uses it.
+2. Otherwise, a relay answering at `http://127.0.0.1:3000` wins. This keeps
+   local sessions working when Tailscale is down.
+3. Otherwise, the installer probes every online Tailscale peer on port `3000`.
+   It uses the MagicDNS name of the first peer that answers.
+4. When no relay answers, the installer checks for existing configuration. It
+   keeps an existing file and continues successfully. If no file exists, the
+   target fails.
+
+Without configuration, `remote-pi` falls back to a public community relay. The
+installer refuses this silent substitution.
+
+The installer prefers loopback on the relay machine itself. This route avoids
+a Tailscale dependency for local sessions.
+
+The installer uses the raw address only when it cannot read the MagicDNS
+suffix. It prefers the MagicDNS name because it survives an address change.
+
+The installer supports Linux and macOS. The `remote` target requires `curl` and
+Tailscale. On macOS, the installer also checks the Tailscale application bundle
+when `PATH` does not provide the CLI.
+
+If `curl` or the Tailscale CLI is missing, the target prints a message that
+names the missing prerequisite. The target then fails. It does not report
+success.
+
+A relay problem never blocks the rest of the `all` install. The installer
+prints a notice and continues.
+
+The installer applies the URL through `remote-pi set-relay`. This command merges
+the configuration and keeps unrelated keys.
 
 ## Intent: model and reasoning depth per role
 

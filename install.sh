@@ -262,6 +262,131 @@ intercom_dir() {
   printf '%s/intercom\n' "${agent_dir%/}"
 }
 
+# Remote-pi hardcodes this path under the home directory.
+# PI_CODING_AGENT_DIR applies only to pi-intercom.
+remote_dir() {
+  printf '%s/.pi/remote\n' "$HOME"
+}
+
+# The macOS application bundle frequently leaves the CLI outside PATH.
+tailscale_cmd() {
+  if command -v tailscale >/dev/null 2>&1; then
+    printf 'tailscale\n'
+    return
+  fi
+  if [[ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]]; then
+    printf '/Applications/Tailscale.app/Contents/MacOS/Tailscale\n'
+    return
+  fi
+
+  return 1
+}
+
+relay_health_ok() {
+  local base_url="$1"
+  local health
+
+  # A missing probe tool is a prerequisite fault, not an absent relay.
+  # The caller separates the two conditions, so never mask this case here.
+  if ! command -v curl >/dev/null 2>&1; then
+    return 2
+  fi
+  health="$(curl -fsS -m 2 "${base_url%/}/health" 2>/dev/null)" || return 1
+  [[ "$health" == "OK" ]]
+}
+
+detect_relay_url() {
+  local tailscale
+  local status_output
+  local suffix
+  local line
+  local address
+  local short_name
+  local remainder
+  local relay_name
+  local relay_url
+  local probe_status
+
+  if [[ -n "${REMOTE_PI_RELAY:-}" ]]; then
+    printf 'Detected relay at %s\n' "$REMOTE_PI_RELAY" >&2
+    printf '%s\n' "$REMOTE_PI_RELAY"
+    return
+  fi
+
+  relay_url="http://127.0.0.1:3000"
+  probe_status=0
+  relay_health_ok "$relay_url" || probe_status=$?
+  if [[ "$probe_status" -eq 0 ]]; then
+    printf 'Detected relay at %s\n' "$relay_url" >&2
+    printf '%s\n' "$relay_url"
+    return
+  fi
+  if [[ "$probe_status" -eq 2 ]]; then
+    printf 'Cannot probe for a relay: curl is not on PATH\n' >&2
+    return 2
+  fi
+
+  if ! tailscale="$(tailscale_cmd)"; then
+    printf 'Cannot probe Tailscale peers: the Tailscale CLI is not available\n' >&2
+    return 2
+  fi
+  status_output="$("$tailscale" status 2>/dev/null)" || return 1
+  suffix="$(
+    "$tailscale" status --json 2>/dev/null |
+      grep -m1 '"MagicDNSSuffix"' |
+      sed -e 's/.*: *"//' -e 's/".*//'
+  )" || true
+
+  while IFS= read -r line; do
+    case "$line" in
+      *offline*) continue ;;
+    esac
+
+    address=
+    short_name=
+    read -r address short_name remainder <<< "$line"
+    if [[ -z "$address" || -z "$short_name" ]]; then
+      continue
+    fi
+
+    if relay_health_ok "http://$address:3000"; then
+      if [[ -n "$suffix" ]]; then
+        relay_name="$(printf '%s' "$short_name" | tr '[:upper:]' '[:lower:]')"
+        relay_url="http://$relay_name.$suffix:3000"
+      else
+        relay_url="http://$address:3000"
+      fi
+      printf 'Detected relay at %s\n' "$relay_url" >&2
+      printf '%s\n' "$relay_url"
+      return
+    fi
+  done <<< "$status_output"
+
+  return 1
+}
+
+remote_pi_cli() {
+  local plugin_cli="$HOME/.omp/plugins/node_modules/remote-pi/dist/index.js"
+
+  if command -v remote-pi >/dev/null 2>&1; then
+    printf 'remote-pi\n'
+    return
+  fi
+  if [[ ! -f "$plugin_cli" ]]; then
+    return 1
+  fi
+  if command -v bun >/dev/null 2>&1; then
+    printf 'bun %s\n' "$plugin_cli"
+    return
+  fi
+  if command -v node >/dev/null 2>&1; then
+    printf 'node %s\n' "$plugin_cli"
+    return
+  fi
+
+  return 1
+}
+
 install_intercom_config() {
   local source_file="$repo_root/omp/intercom.json"
   local target_dir
@@ -273,6 +398,75 @@ install_intercom_config() {
   backup_if_changed "$source_file" "$target_file"
   install -m 0600 "$source_file" "$target_file"
   printf 'Installed pi-intercom configuration at %s\n' "$target_file"
+}
+
+install_remote_config() {
+  local relay_url
+  local target_dir
+  local target_file
+  local existing_relay
+  local remote_cli
+  local remote_runtime
+  local remote_script
+  local timestamp
+  local detect_status
+
+  detect_status=0
+  relay_url="$(detect_relay_url)" || detect_status=$?
+  # Status 2 means a prerequisite is missing. Report that as a failure.
+  # Never claim a successful install while remote-pi stays unconfigured.
+  if [[ "$detect_status" -eq 2 ]]; then
+    printf 'Install curl and Tailscale, then run this target again\n' >&2
+    return 1
+  fi
+  if [[ "$detect_status" -ne 0 ]]; then
+    printf 'Cannot detect the remote-pi relay on local or Tailscale peers\n' >&2
+    # An absent configuration makes remote-pi fall back to the public
+    # community relay. Fail instead of accepting that silent substitution.
+    if [[ ! -f "$(remote_dir)/config.json" ]]; then
+      printf 'No relay is configured, so remote-pi would use the public community relay\n' >&2
+      printf 'Start the relay, then run this target again\n' >&2
+      return 1
+    fi
+    printf 'The existing remote-pi configuration is unchanged\n' >&2
+    return 0
+  fi
+
+  target_dir="$(remote_dir)"
+  target_file="$target_dir/config.json"
+  existing_relay=
+  if [[ -f "$target_file" ]]; then
+    existing_relay="$(
+      sed -n 's/.*"relay"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$target_file" |
+        sed -n '1p'
+    )"
+  fi
+  if [[ "$existing_relay" == "$relay_url" ]]; then
+    printf 'Remote-pi already uses relay %s; skipping configuration\n' "$relay_url"
+    return
+  fi
+
+  if ! remote_cli="$(remote_pi_cli)"; then
+    printf 'Cannot configure remote-pi for relay %s automatically\n' "$relay_url" >&2
+    printf 'Set it manually with: remote-pi set-relay %s\n' "$relay_url" >&2
+    return 0
+  fi
+
+  install -d -m 0700 "$target_dir"
+  if [[ -f "$target_file" ]]; then
+    timestamp="$(date +%Y%m%d-%H%M%S)"
+    cp "$target_file" "${target_file}.backup.${timestamp}"
+    printf 'Backed up %s\n' "$target_file"
+  fi
+
+  if [[ "$remote_cli" == "remote-pi" ]]; then
+    remote-pi set-relay "$relay_url"
+  else
+    remote_runtime="${remote_cli%% *}"
+    remote_script="${remote_cli#* }"
+    "$remote_runtime" "$remote_script" set-relay "$relay_url"
+  fi
+  printf 'Configured remote-pi relay at %s\n' "$relay_url"
 }
 
 install_git_hooks() {
@@ -329,13 +523,34 @@ install_intercom_plugin() {
   fi
 }
 
+install_remote_plugin() {
+  local plugin_list
+
+  if ! command -v omp >/dev/null 2>&1; then
+    printf 'Cannot install remote-pi: omp is not on PATH\n' >&2
+    return 1
+  fi
+
+  plugin_list="$(omp plugin list 2>/dev/null || true)"
+  if [[ "$plugin_list" == *remote-pi* ]]; then
+    printf 'remote-pi is already installed; skipping plugin install\n'
+  else
+    omp install remote-pi
+  fi
+}
+
 install_intercom() {
   install_intercom_plugin
   install_intercom_config
 }
 
+install_remote() {
+  install_remote_plugin
+  install_remote_config
+}
+
 usage() {
-  printf 'Usage: %s [all|hooks|omp|intercom]\n' "${0##*/}"
+  printf 'Usage: %s [all|hooks|omp|intercom|remote]\n' "${0##*/}"
 }
 
 case "${1:-all}" in
@@ -346,6 +561,12 @@ case "${1:-all}" in
     if ! install_intercom_plugin; then
       printf 'Continuing without the pi-intercom plugin\n' >&2
     fi
+    if ! install_remote_plugin; then
+      printf 'Continuing without the remote-pi plugin\n' >&2
+    fi
+    if ! install_remote_config; then
+      printf 'Continuing without the remote-pi relay configuration\n' >&2
+    fi
     ;;
   hooks)
     install_git_hooks
@@ -355,6 +576,9 @@ case "${1:-all}" in
     ;;
   intercom)
     install_intercom
+    ;;
+  remote)
+    install_remote
     ;;
   -h|--help)
     usage

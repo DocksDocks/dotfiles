@@ -11,7 +11,7 @@ files, session history, caches, logs, and machine-specific state remain local.
 | Directory | Purpose |
 | --- | --- |
 | [`.githooks/`](.githooks/) | Version-controlled safeguards for staged commits |
-| [`omp/`](omp/) | OMP settings, pi-intercom broker configuration, minimal global context, MCP policy, installation, and rationale |
+| [`omp/`](omp/) | OMP settings, pi-intercom broker configuration, remote-pi relay discovery, minimal global context, MCP policy, installation, and rationale |
 | [`xfce4/`](xfce4/) | Night Owl Xfce desktop assets, rationale, and undo contract |
 
 ## Install
@@ -37,10 +37,32 @@ Install the `pi-intercom` npm plugin and provision its broker configuration
 ./install.sh intercom
 ```
 
+Install the `remote-pi` npm plugin:
+
+```bash
+./install.sh remote
+```
+
+The target discovers its relay automatically. It requires `curl` and Tailscale.
+On macOS, the installer also checks the Tailscale application bundle when
+`PATH` does not provide the CLI.
+
+If `curl` or the Tailscale CLI is missing, the target prints a message that
+names the missing prerequisite. The target then fails. It does not report
+success. If no relay answers, the target keeps an existing configuration file
+and continues successfully.
+
+If no relay answers and no configuration file exists, the target fails.
+Without configuration, `remote-pi` falls back to a public community relay. The
+installer refuses this silent substitution.
+
 The `intercom` target is strict and fails when a prerequisite or the npm plugin
 install fails. The default `all` target installs the plugin when `omp` and `bun`
 are present, but warns and continues with hooks and tracked configuration when
 the plugin cannot be installed.
+
+A relay problem never blocks the rest of the `all` install. The installer
+prints a notice and continues.
 
 Enable only the repository safeguards:
 
@@ -56,7 +78,9 @@ destination while destination-only mapping keys remain. `omp/intercom.json` is
 installed as `$HOME/.pi/agent/intercom/config.json`, or as
 `$PI_CODING_AGENT_DIR/intercom/config.json` when that variable is set. This is
 the pi-intercom runtime directory, not a path under `$HOME/.omp`. Existing
-managed files are backed up before a changed result replaces them.
+managed files are backed up before a changed result replaces them. This
+repository does not store the relay URL. The installer discovers it at install
+time.
 
 `install.sh` and the pre-commit hook run on Linux and on macOS. Both use only
 Bash 3.2 syntax and the tools that each base system provides, so the Bash 3.2
