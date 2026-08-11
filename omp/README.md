@@ -99,11 +99,21 @@ Ensure `$HOME/.local/bin` is on `PATH`.
 therefore does not block the downloaded binary.
 
 From the dotfiles repository root, install the tracked settings, minimal global
-context, and MCP policy with:
+context, MCP policy, and pi-intercom broker configuration with:
 
 ```bash
 ./install.sh omp
 ```
+
+This target does not reach the network. To install the `pi-intercom` npm plugin
+and provision the same broker configuration, run:
+
+```bash
+./install.sh intercom
+```
+
+The `intercom` target reaches the network for the plugin install. `bun` must be
+on `PATH` because it runs the broker.
 
 The installer handles the three tracked files under `~/.omp/agent/` as
 follows:
@@ -116,6 +126,12 @@ follows:
   Repository scalar values replace matching destination values. Repository
   lists replace matching destination lists as complete values; their existing
   elements are not preserved.
+
+The separate `omp/intercom.json` is installed as
+`$HOME/.pi/agent/intercom/config.json`, or as
+`$PI_CODING_AGENT_DIR/intercom/config.json` when that variable is set. The
+extension keeps its runtime files under the Pi agent directory rather than
+under `$HOME/.omp`.
 
 The resulting files are installed with mode `0600`, and `config.yml` is backed
 up only when the merged output changes the destination. Local runtime files such
@@ -544,6 +560,128 @@ seconds. Advisor observations can still arrive asynchronously.
 Source:
 
 - [OMP advisor and backlog behavior](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/advisor-watchdog.md)
+
+## Intent: cross-session messaging between independent sessions
+
+OMP's `hub` messaging is process-local and scoped to one session's subagent
+tree. `/collab` shares one session with guests rather than connecting peer
+sessions. Two independent top-level sessions therefore cannot address each
+other natively. [Issue 7537](https://github.com/can1357/oh-my-pi/issues/7537)
+documents the process boundary, [issue
+8077](https://github.com/can1357/oh-my-pi/issues/8077) is the open request for
+cross-session messaging, and [draft PR
+7255](https://github.com/can1357/oh-my-pi/pull/7255) remains unmerged. Together
+they show that this capability is missing rather than hidden.
+
+The third-party Pi extension
+[`pi-intercom`](https://www.npmjs.com/package/pi-intercom) fills this gap. OMP
+is a fork of Pi, and its installed-package loader accepts legacy
+`pi.extensions` manifests. Its compatibility loader also rewrites
+`@earendil-works/*` imports onto OMP's bundled packages.
+
+The extension's default broker launcher is `npx --no-install tsx`. That default
+makes `getTsxCliPath()` resolve `tsx` through `createRequire`, which throws
+under OMP. The function then returns its fallback path inside
+`pi-intercom/node_modules`. OMP installs plugins into one flat store, so `tsx`
+is a sibling of `pi-intercom` and that fallback path does not exist. Node exits
+with code 1 and `MODULE_NOT_FOUND`. The extension reports only `Intercom broker
+exited before startup with code 1`, because it spawns the broker with
+`stdio: "ignore"` and discards the real error.
+
+The literal `node` command that the launcher substitutes for OMP's own
+executable is not the cause. `node` is on `PATH`, and the same command with the
+real `tsx` path starts the broker. The tracked `brokerCommand` override uses
+`bun`, which skips the `tsx` path entirely and runs the TypeScript broker
+directly. `bun` must therefore be on `PATH`.
+
+Measured against `pi-intercom@0.10.0`: `broker/spawn.ts:44-57` resolves `tsx`
+and defines the fallback, `:148-160` selects it for the default launcher, and
+`:175` discards the broker's output.
+
+An end-to-end check used two independent, long-lived OMP sessions. They
+discovered each other, a message reached a session while it was idle and
+started a turn there, and a blocking ask returned the peer's answer. This is
+measured behavior, not a compatibility guarantee.
+
+Operational constraints:
+
+- `/name` from the extension's README is not an OMP command. Address a peer by
+  session ID or its automatically generated title.
+- A print-mode (`omp -p`) sender cannot receive an ask reply. Each invocation is
+  a fresh short-lived session that is gone when the reply is routed, so
+  blocking asks require long-lived sessions on both ends.
+- The broker connects sessions for one user on one machine; it is not a remote
+  transport.
+
+No public report was found of anyone else running pi-intercom under OMP. GitHub
+API searches across the OMP, pi-intercom, and remote_pi repositories found no
+mention, and a broad web search found nothing indexed. The extension declares
+no OMP version floor, so a future OMP release could break this compatibility
+without warning.
+
+Alternatives were evaluated before adopting this extension. OMP provides no
+native mechanism. Its `hub` messaging is in-process, `omp acp` serves ACP over
+stdio as a server and cannot act as a client to another session, `omp share`
+publishes an encrypted snapshot, and `omp join` joins one shared host session.
+An MCP server cannot substitute for it either. OMP's MCP client advertises only
+`roots` and answers other server-initiated requests with JSON-RPC `-32601`, so
+no MCP server can start a turn in an idle session. The MCP message buses that
+exist require the recipient to poll an inbox.
+
+The closest third-party alternative is
+[`@agent-ops/omp-nats-channel`](https://www.npmjs.com/package/@agent-ops/omp-nats-channel).
+It is stronger on compatibility, because it declares a native `omp.extensions`
+manifest and depends on `@oh-my-pi/pi-coding-agent` instead of Pi internals.
+Self-hosting its server is clean. `nats-server` is Apache-2.0, a CNCF
+Incubating project, and a single release binary. It runs from
+`listen: 127.0.0.1:4222` with no documented telemetry, licence check, or update
+check, and a plain loopback instance has no configured outbound destination.
+
+It was rejected on measured behavior instead. Its `request` tool returns a
+`taskId` and `TASK_STATE_WORKING` immediately, and the peer's answer does not
+come back as the tool result. This was measured with JetStream both disabled
+and enabled. In one run the answer arrived later as a separate inbound message.
+In another it never arrived, although the peer had answered. The same prompt
+was also delivered to the peer three times. Two further costs: with `NATS_URL`
+unset it connects to the public `demo.nats.io` and forks a `sesh` process, and
+its key-value and object buckets need JetStream, so core NATS is not enough.
+
+The remaining four candidates were installed and executed, not only read.
+[`remote-pi`](https://github.com/jacobaraujo7/remote_pi) meets all three
+requirements. It loads under OMP v17.2.12 with no warning and registers
+`agent_send`, `agent_request`, and `list_peers`. Every session must first run the
+`/remote-pi join` wizard, which offers an external relay; declining it keeps the
+mesh local to the machine. Accepting it costs confidentiality: its `relay/README`
+states that a relay operator can see routed plaintext, so the shared relay is not
+an end-to-end boundary. Running `jacobmoura7/remote-pi-relay` under `docker run`
+and pointing the extension at it removes that operator from the trust path. The
+setter is `/remote-pi set-relay <url>`, followed by a session restart; the
+documented `/remote-pi relay url` and `/remote-pi relay stop` are inert in 0.5.5
+and only reprint the status panel. Contrast `/collab`, which seals every payload with
+AES-256-GCM before the socket, so its relay sees only ciphertext, room ids, and
+frame sizes. Peers are addressed as `<cwd>@<name>`, so addressing
+crosses projects by construction. Its `agent_request` returned the peer's answer
+as the tool result. That was proven with a fact the sender could not hold: the
+peer's working directory. Its own README, however, offers `agent_request` "only
+as deprecated legacy behavior". The supported call is `agent_send`, which waits
+for a delivery acknowledgement of `received`, `denied`, or `timeout`, and content
+replies then arrive asynchronously through `re`. So the supported path is the
+acknowledgement-only shape, and the correlated reply survives on a deprecated
+one. `pi-intercom` remains the tracked choice for that reason, and because it
+needs no per-session join and no relay decision.
+
+The other three do not run here.
+[`pi-messenger`](https://github.com/nicobailon/pi-messenger) imports `typebox`
+without declaring it as a dependency. OMP fails to load it with `Sj(A).or is not
+a function`, so its skills load while its tool never registers.
+[`control`](https://github.com/jayshah5696/pi-agent-extensions) ships inside
+`pi-agent-extensions`, and that install aborts on a missing
+`@sinclair/typebox/value` and on `Export named 'ModelRuntime' not found in
+module 'omp-legacy-pi-bundled:@oh-my-pi/pi-coding-agent'`.
+[`crosstalk`](https://github.com/byteowlz/pi-agent-extensions) publishes no
+package. That repository is `private: true`, and its released extensions carry
+`@byteowlz/pi-*` names. OMP's own `swarm-extension` runs subprocess workers from
+one session rather than connecting independent sessions.
 
 ## Intent: context preservation without remote summarizer dependence
 

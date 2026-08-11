@@ -246,6 +246,35 @@ install_omp_config() (
   install -m 0600 "$merged_file" "$target_file"
 )
 
+intercom_dir() {
+  local agent_dir
+
+  if [[ -n "${PI_CODING_AGENT_DIR:-}" ]]; then
+    if [[ "$PI_CODING_AGENT_DIR" == /* ]]; then
+      agent_dir="$PI_CODING_AGENT_DIR"
+    else
+      agent_dir="$PWD/$PI_CODING_AGENT_DIR"
+    fi
+  else
+    agent_dir="$HOME/.pi/agent"
+  fi
+
+  printf '%s/intercom\n' "${agent_dir%/}"
+}
+
+install_intercom_config() {
+  local source_file="$repo_root/omp/intercom.json"
+  local target_dir
+  local target_file
+
+  target_dir="$(intercom_dir)"
+  target_file="$target_dir/config.json"
+  install -d -m 0700 "$target_dir"
+  backup_if_changed "$source_file" "$target_file"
+  install -m 0600 "$source_file" "$target_file"
+  printf 'Installed pi-intercom configuration at %s\n' "$target_file"
+}
+
 install_git_hooks() {
   if ! git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     printf 'Cannot install hooks: %s is not a Git working tree\n' "$repo_root" >&2
@@ -271,24 +300,61 @@ install_omp() {
   backup_if_changed "$mcp_source" "$mcp_target"
   install -m 0600 "$agents_source" "$agents_target"
   install -m 0600 "$mcp_source" "$mcp_target"
+  install_intercom_config
   printf 'Installed OMP configuration at %s, %s, and %s\n' \
     "$agents_target" "$config_target" "$mcp_target"
 }
 
+# Pi-intercom's default npx --no-install tsx launcher cannot locate tsx under omp:
+# omp installs plugins into one flat store, while the launcher's fallback path looks
+# inside pi-intercom/node_modules, so the broker exits with code 1. Bun runs the
+# TypeScript broker directly and needs no tsx path.
+install_intercom_plugin() {
+  local plugin_list
+
+  if ! command -v omp >/dev/null 2>&1; then
+    printf 'Cannot install pi-intercom: omp is not on PATH\n' >&2
+    return 1
+  fi
+  if ! command -v bun >/dev/null 2>&1; then
+    printf 'Cannot install pi-intercom: bun is not on PATH; bun is the broker runtime\n' >&2
+    return 1
+  fi
+
+  plugin_list="$(omp plugin list 2>/dev/null || true)"
+  if [[ "$plugin_list" == *pi-intercom* ]]; then
+    printf 'pi-intercom is already installed; skipping plugin install\n'
+  else
+    omp install pi-intercom
+  fi
+}
+
+install_intercom() {
+  install_intercom_plugin
+  install_intercom_config
+}
+
 usage() {
-  printf 'Usage: %s [all|hooks|omp]\n' "${0##*/}"
+  printf 'Usage: %s [all|hooks|omp|intercom]\n' "${0##*/}"
 }
 
 case "${1:-all}" in
   all)
     install_git_hooks
     install_omp
+    # Plugin availability must not block repository hooks or tracked configuration.
+    if ! install_intercom_plugin; then
+      printf 'Continuing without the pi-intercom plugin\n' >&2
+    fi
     ;;
   hooks)
     install_git_hooks
     ;;
   omp)
     install_omp
+    ;;
+  intercom)
+    install_intercom
     ;;
   -h|--help)
     usage

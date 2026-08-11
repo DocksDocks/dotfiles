@@ -11,7 +11,7 @@ files, session history, caches, logs, and machine-specific state remain local.
 | Directory | Purpose |
 | --- | --- |
 | [`.githooks/`](.githooks/) | Version-controlled safeguards for staged commits |
-| [`omp/`](omp/) | OMP settings, minimal global context, MCP policy, installation, and rationale |
+| [`omp/`](omp/) | OMP settings, pi-intercom broker configuration, minimal global context, MCP policy, installation, and rationale |
 | [`xfce4/`](xfce4/) | Night Owl Xfce desktop assets, rationale, and undo contract |
 
 ## Install
@@ -30,6 +30,18 @@ Install only one configuration:
 ./install.sh omp
 ```
 
+Install the `pi-intercom` npm plugin and provision its broker configuration
+(`bun` must be on `PATH` because it runs the broker):
+
+```bash
+./install.sh intercom
+```
+
+The `intercom` target is strict and fails when a prerequisite or the npm plugin
+install fails. The default `all` target installs the plugin when `omp` and `bun`
+are present, but warns and continues with hooks and tracked configuration when
+the plugin cannot be installed.
+
 Enable only the repository safeguards:
 
 ```bash
@@ -40,8 +52,11 @@ The installer copies explicitly listed files rather than linking or copying
 entire application directories. For OMP, `AGENTS.md` and `mcp.json` remain
 managed files that are replaced (with a backup when their contents differ);
 `config.yml` is recursively overlaid so repository mappings merge into the
-destination while destination-only mapping keys remain. Existing managed files
-are backed up before a changed result replaces them.
+destination while destination-only mapping keys remain. `omp/intercom.json` is
+installed as `$HOME/.pi/agent/intercom/config.json`, or as
+`$PI_CODING_AGENT_DIR/intercom/config.json` when that variable is set. This is
+the pi-intercom runtime directory, not a path under `$HOME/.omp`. Existing
+managed files are backed up before a changed result replaces them.
 
 `install.sh` and the pre-commit hook run on Linux and on macOS. Both use only
 Bash 3.2 syntax and the tools that each base system provides, so the Bash 3.2
