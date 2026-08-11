@@ -108,6 +108,7 @@ dev:
   autoqa: false
   autoqaConsent: denied
 compaction: 
+  thresholdTokens: 231200
   idleEnabled: true
   handoffSaveToDisk: true
 doubleEscapeAction: tree

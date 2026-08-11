@@ -768,10 +768,12 @@ one session rather than connecting independent sessions.
 ## Intent: context preservation without remote summarizer dependence
 
 OMP defaults to the local `snapcompact` strategy. The tracked configuration
-adds idle maintenance and saves handoff documents:
+sets one compaction ceiling, adds idle maintenance, and saves handoff
+documents:
 
 ```yaml
 compaction:
+  thresholdTokens: 231200
   idleEnabled: true
   handoffSaveToDisk: true
 ```
@@ -780,9 +782,70 @@ Snapcompact archives older history locally into model-aware image frames rather
 than requiring a separate summarization API call. Idle maintenance performs
 context work while the session is not actively streaming.
 
-Source:
+A settings change reaches only OMP processes that start after it. OMP reads
+the configuration once per process and installs no watcher on the file. A
+session resumed in a new process therefore loads the current values, while an
+instance left running keeps the ceiling it started with until it restarts.
+
+`thresholdTokens` gives every model one working-set ceiling. Without it, OMP
+compacts when the context passes the model window minus a reserve, and that
+reserve is the larger of 16,384 tokens and 15% of the window. The rule scales
+with the window rather than with the work: Claude Opus 5 declares 1,000,000
+tokens and runs to 850,000, while GPT-5.6 Sol and GPT-5.6 Luna declare 272,000
+and stop at 231,200. The tracked value is exactly that Codex figure, so the
+setting changes nothing for Sol and Luna and brings Opus 5 to the same point.
+
+The ceiling is global on purpose, because OMP has no per-model compaction
+setting. Issue #6835 requests one. Two apparent alternatives were measured and
+rejected:
+
+- A per-model `contextWindow` override in `models.yml` moves the trigger, but
+  it declares model capability rather than compaction policy. The same number
+  also drives overflow detection, output budgets, retry fit checks, branch
+  summary budgets, and the `/context` display, so it makes the harness believe
+  Opus 5 is a smaller model than it is.
+- A global `compaction.reserveTokens` large enough to lower Opus 5 alone looks
+  safe, because a reserve larger than the whole window falls back to the
+  proportional 15% reserve and leaves the Codex threshold at 231,200. It is not
+  safe. Snapcompact sizes its frame budget and its post-render overflow check
+  from the unclamped reserve, so a 616,000-token reserve gives a 272,000-token
+  model a budget of -344,000. Snapcompact then aborts on every Codex
+  compaction: one path throws, and the other degrades to context-full
+  summarization through the model.
+
+231,200 is a measured choice. Across 51 recorded Opus 5 compactions on this
+machine, the trigger point had a median of 272,621 tokens and a 90th percentile
+of 544,157, because idle maintenance at 200,000 tokens fired long before the
+850,000 ceiling did. The ceiling therefore tightens a median that idle
+maintenance already produced, and removes a tail that reached 793,039 tokens.
+
+It also keeps the cross-provider escape usable. A retryable Anthropic error
+moves the live session to Sol-high, and OMP does not yet check that the target
+window can hold the context it is about to send; issue #8065 tracks the missing
+check, and the fix in pull request #8068 is open and absent from 17.2.13. The
+ceiling removes the large steady-state mismatch, which was 618,800 tokens, but
+it does not guarantee a fit: compaction triggers only above the limit, so a
+single large tool result can carry a turn past Sol's usable window before
+maintenance runs. A ceiling of 200,000 would add 31,200 tokens of slack.
+
+The cost is working room. One compaction leaves a floor near 81,510 tokens,
+which is 23,254 tokens of system prompt, tool schemas, and skills, plus 21,652
+tokens kept verbatim, plus the imaged archive and its text edges. That leaves
+roughly 149,690 tokens of fresh evidence between two compactions on a
+continuously active run. Idle maintenance still fires near 200,000 tokens after
+five minutes, so a session that pauses keeps the cadence it had before. Three
+levers cover a task that needs more: delegate bulk exploration to `task`
+agents, which hold their own context; run `/shake` to trade large tool results
+for recoverable `artifact://` references; or start one run with an overlay,
+`omp --config <file>`, that raises the ceiling without changing the tracked
+configuration.
+
+Sources:
 
 - [OMP compaction and snapcompact behavior](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/compaction.md)
+- [OMP issue 6835: per-model compaction thresholds](https://github.com/can1357/oh-my-pi/issues/6835)
+- [OMP issue 8065: oversized context on retry fallback](https://github.com/can1357/oh-my-pi/issues/8065)
+- [OMP pull request 8068: fit-check retry fallback](https://github.com/can1357/oh-my-pi/pull/8068)
 
 ## Intent: minimal OMP-native global context
 
