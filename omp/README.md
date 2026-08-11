@@ -136,8 +136,9 @@ reasoning that model spends.
 
 | Roles | Selector | Intent |
 | --- | --- | --- |
-| `default`, `advisor`, `designer` | `anthropic/claude-opus-5:medium` | Primary session, advisor channel, and design specialization |
-| `slow`, `plan` | `anthropic/claude-opus-5:max` | Difficult investigations, the bundled reviewer, and planning |
+| `default`, `slow`, `plan` | `anthropic/claude-opus-5:max` | Primary session, difficult investigations, the bundled reviewer, and planning |
+| `designer` | `anthropic/claude-opus-5:medium` | Design specialization |
+| `advisor` | `openai-codex/gpt-5.6-sol:high` | Advisor channel, on the second provider |
 | `vision` | `anthropic/claude-opus-5:high` | Image inspection; dormant while the active model accepts images |
 | `task` | `openai-codex/gpt-5.6-sol:high` | Delegated implementation |
 | `commit`, `tiny` | `openai-codex/gpt-5.6-luna:high` | Commit helpers, titles, memory utilities |
@@ -146,13 +147,20 @@ reasoning that model spends.
 The bundled OMP reviewer resolves through the `slow` role, while the general
 task worker resolves through `task`.
 
-`slow` and `plan` sit at the top of the ladder because their output is consumed
-as a decision rather than as a draft: a review or a plan is rarely
-re-litigated, so the extra latency buys something the next turn cannot recover.
-`default`, `advisor`, and `designer` sit at `medium` because the primary
-session pays that cost on every single turn. Measured against `xhigh`, `medium`
-gives up 3.8 index points, returns the first answer token in 6.43s instead of
-26.27s, and costs 40 percent as much per task.
+`default`, `slow`, and `plan` sit at the top of the ladder. For `slow` and
+`plan`, the output is consumed as a decision rather than as a draft: a review
+or a plan is rarely re-litigated, so the extra latency buys something the next
+turn cannot recover. `default` joins them by explicit choice: the primary
+session takes the maximum reasoning depth on every turn, and pays 34.56s to the
+first answer token and $2.34 per task for it. Measured against `medium`, `max`
+gains 4.4 index points at roughly three times the cost per task.
+
+`advisor` runs on the other provider at `high`. The advisor channel exists to
+review the primary session, so a second opinion from a different model family
+is worth more than one more Opus 5 instance. Sol-high scores 55.9 and answers
+in 14.07s at $0.55 per task, which keeps the review channel cheaper and faster
+than the session it reviews. `designer` stays at `medium` for the same cost
+reason that used to apply to the primary session.
 
 `vision` is dormant under this configuration and is set for the case where it
 is not. It backs the `inspect_image` tool, which delegates an image to a
@@ -369,8 +377,6 @@ retry:
     default:
       - anthropic/claude-opus-5:medium
       - openai-codex/gpt-5.6-sol:high
-    advisor:
-      - openai-codex/gpt-5.6-sol:high
     slow:
       - openai-codex/gpt-5.6-sol:high
     designer:
@@ -405,15 +411,17 @@ selectors that are still cooling down, so the two directions cannot ping-pong.
 
 The policy preserves the purpose of each role across a provider outage:
 
-- Opus-led work — `default`, `advisor`, `designer` — recovers to Sol-high,
-  which scores 55.9 against Opus 5-medium's 56.3, a gap of 0.4 index points.
-  Recovery is close to lossless in measured intelligence. A provider-level
-  Anthropic failure leaves the primary session, the advisor channel, review,
-  and design on an effectively equivalent model from the other provider. The
-  work does not drop to a cheaper tier. `slow` and `plan` run at Opus 5-max,
-  which scores 60.7, so those roles give up measurable ground on recovery.
-  The configuration accepts that loss because the alternative is no answer
-  at all.
+- Opus-led work — `default`, `slow`, `plan`, `designer`, `vision` — recovers
+  to Sol-high, which scores 55.9. For `designer` at Opus 5-medium, whose score
+  is 56.3, the gap is 0.4 index points and recovery is close to lossless. For
+  the roles at Opus 5-max, whose score is 60.7, the loss is measurable. The
+  configuration accepts that loss because the alternative is no answer at all,
+  and the recovered work still runs on a top-tier model rather than a cheaper
+  one.
+- `advisor` already runs on Sol, so it needs no role chain: a Sol failure
+  matches the exact `openai-codex/gpt-5.6-sol` key first and recovers to Opus
+  5-medium. The advisor channel therefore keeps its defining property across
+  an outage — it reviews the session from a different model family.
 - The model-specific Opus 5 key covers every Opus-led role, including `plan`
   and `vision`, which declare no role chain of their own. It takes precedence
   over the role chains, so all Opus 5 work recovers to Sol-high.
