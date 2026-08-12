@@ -226,7 +226,7 @@ reasoning that model spends.
 | `default`, `slow`, `plan` | `anthropic/claude-opus-5:max` | Primary session, difficult investigations, and planning |
 | `designer` | `anthropic/claude-opus-5:high` | Design specialization |
 | `advisor` | `openai-codex/gpt-5.6-sol:high` | Advisor channel, on the second provider |
-| `vision` | `openai-codex/gpt-5.6-luna:high` | Image inspection; dormant while the active model accepts images |
+| `vision` | `openai-codex/gpt-5.6-sol:low` | Image inspection; dormant while the active model accepts images |
 | `task` | `openai-codex/gpt-5.6-sol:high` | Delegated implementation |
 | `commit`, `tiny` | `openai-codex/gpt-5.6-luna:high` | Commit helpers, titles, memory utilities |
 | `smol` | `openai-codex/gpt-5.6-luna` | Backs the bundled research agents; level left to each agent |
@@ -263,12 +263,17 @@ registered and the role is never consulted.
 
 It becomes live when that stops holding: an active model without image input, a
 session-scoped `/vision` override, or `inspect_image.mode: on`. At that point
-the tool resolves `@vision` first, falling back to `@default`. Luna at `high`
-rather than an Opus tier, because reading an image is a perception task and the
-reasoning ladder is the wrong axis for it. Luna accepts image input, reaches the
-first answer token in 14.68s, and costs $0.022 per task against $1.23 for Opus
-5-high. A higher tier would add thinking time to a call the user is waiting on
-without improving what the model sees.
+the tool resolves `@vision` first, falling back to `@default`. The role takes
+Sol at `low`, because reading an image is a perception task and the reasoning
+ladder is the wrong axis for it.
+
+Artificial Analysis measures image input separately from the Intelligence Index,
+with MMMU-Pro. That score barely responds to reasoning effort. Across the Sol
+tiers it moves from 81.0 at `low` to 83.4 at `max`, while time to the first
+answer token moves from 3.28s to 153.87s. The ladder buys latency here, not
+perception, so the role takes the lowest tier of the strongest image model the
+floor allows. Sol at `low` scores 81.0 and answers in 3.28s, ahead of every
+other tier that answers in under four seconds.
 
 Sources:
 
@@ -293,10 +298,12 @@ argument about whether the saving is worth the capability loss. Deciding once at
 the vendor line ends that argument. A later release on the same line, for
 example GPT-5.7, satisfies the floor with no change here.
 
-The floor is stated in `omp/AGENTS.md` rather than in `config.yml`, because
-`config.yml` can only pin the models this configuration already selects. The
-rule also has to reach a model choice made in prose, such as a fallback chain
-proposed in review or a model named in an assessment.
+The floor is stated in the repository context file, `AGENTS.md`, rather than in
+`config.yml`. A configuration key can only pin the models this configuration
+already selects, while the rule also has to reach a model choice made in prose,
+such as a fallback chain proposed in review. The rule binds work in this
+repository, which is where `config.yml` is edited, and it installs nothing into
+the home directory.
 
 Source:
 
@@ -313,30 +320,33 @@ where that choice stays checkable without a new measurement round.
 Artificial Analysis reports the following, retrieved 2026-08-12 against
 Intelligence Index v4.1.1. Every model listed has a 1,000,000-token context
 window. "Time to first answer token" includes model thinking time. "Cost per
-task" is the weighted average cost of one Intelligence Index task.
+task" is the weighted average cost of one Intelligence Index task. "Image
+(MMMU-Pro)" is the multiple-choice image evaluation, as a percentage.
+Artificial Analysis runs it outside the Intelligence Index, so it does not
+contribute to the index column.
 
-| Model (tier) | Intelligence Index | Output speed | Time to first answer token | Cost per task | Price in / out per 1M |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Opus 5 low | 52.5 | 52.7 tok/s | 3.08s | $0.43 | $5.00 / $25.00 |
-| Opus 5 medium | 58.6 | 53.5 tok/s | 8.59s | $0.72 | $5.00 / $25.00 |
-| Opus 5 high | 61.5 | 51.9 tok/s | 12.00s | $1.23 | $5.00 / $25.00 |
-| Opus 5 xhigh | 62.5 | 52.2 tok/s | 25.09s | $1.80 | $5.00 / $25.00 |
-| Opus 5 max | 63.1 | 54.1 tok/s | 58.23s | $2.34 | $5.00 / $25.00 |
-| Sol low | 50.7 | 51.6 tok/s | 3.28s | $0.23 | $5.00 / $30.00 |
-| Sol medium | 55.6 | 58.3 tok/s | 5.75s | $0.37 | $5.00 / $30.00 |
-| Sol high | 57.3 | 56.7 tok/s | 15.73s | $0.55 | $5.00 / $30.00 |
-| Sol xhigh | 59.0 | 60.7 tok/s | 43.35s | $0.81 | $5.00 / $30.00 |
-| Sol max | 60.9 | 62.7 tok/s | 153.87s | $1.23 | $5.00 / $30.00 |
-| Terra low | 41.3 | 102.3 tok/s | 1.67s | $0.094 | $2.00 / $12.00 |
-| Terra medium | 46.8 | 103.6 tok/s | 1.50s | $0.12 | $2.00 / $12.00 |
-| Terra high | 50.1 | 105.1 tok/s | 3.10s | $0.22 | $2.00 / $12.00 |
-| Terra xhigh | 52.8 | 107.7 tok/s | 29.77s | $0.31 | $2.00 / $12.00 |
-| Terra max | 56.6 | 123.2 tok/s | 173.50s | $0.51 | $2.00 / $12.00 |
-| Luna low | 33.9 | 143.1 tok/s | 1.77s | $0.009 | $0.20 / $1.20 |
-| Luna medium | 38.9 | 142.5 tok/s | 2.35s | $0.011 | $0.20 / $1.20 |
-| Luna high | 47.0 | 164.8 tok/s | 14.68s | $0.022 | $0.20 / $1.20 |
-| Luna xhigh | 50.1 | 157.7 tok/s | 50.93s | $0.032 | $0.20 / $1.20 |
-| Luna max | 52.3 | 162.3 tok/s | 136.64s | $0.047 | $0.20 / $1.20 |
+| Model (tier) | Intelligence Index | Image (MMMU-Pro) | Output speed | Time to first answer token | Cost per task | Price in / out per 1M |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Opus 5 low | 52.5 | 79.8 | 52.7 tok/s | 3.08s | $0.43 | $5.00 / $25.00 |
+| Opus 5 medium | 58.6 | 81.6 | 53.5 tok/s | 8.59s | $0.72 | $5.00 / $25.00 |
+| Opus 5 high | 61.5 | 82.4 | 51.9 tok/s | 12.00s | $1.23 | $5.00 / $25.00 |
+| Opus 5 xhigh | 62.5 | 84.0 | 52.2 tok/s | 25.09s | $1.80 | $5.00 / $25.00 |
+| Opus 5 max | 63.1 | 84.7 | 54.1 tok/s | 58.23s | $2.34 | $5.00 / $25.00 |
+| Sol low | 50.7 | 81.0 | 51.6 tok/s | 3.28s | $0.23 | $5.00 / $30.00 |
+| Sol medium | 55.6 | 81.4 | 58.3 tok/s | 5.75s | $0.37 | $5.00 / $30.00 |
+| Sol high | 57.3 | 81.8 | 56.7 tok/s | 15.73s | $0.55 | $5.00 / $30.00 |
+| Sol xhigh | 59.0 | 82.7 | 60.7 tok/s | 43.35s | $0.81 | $5.00 / $30.00 |
+| Sol max | 60.9 | 83.4 | 62.7 tok/s | 153.87s | $1.23 | $5.00 / $30.00 |
+| Terra low | 41.3 | 76.1 | 102.3 tok/s | 1.67s | $0.094 | $2.00 / $12.00 |
+| Terra medium | 46.8 | 76.8 | 103.6 tok/s | 1.50s | $0.12 | $2.00 / $12.00 |
+| Terra high | 50.1 | 79.1 | 105.1 tok/s | 3.10s | $0.22 | $2.00 / $12.00 |
+| Terra xhigh | 52.8 | 79.5 | 107.7 tok/s | 29.77s | $0.31 | $2.00 / $12.00 |
+| Terra max | 56.6 | 80.7 | 123.2 tok/s | 173.50s | $0.51 | $2.00 / $12.00 |
+| Luna low | 33.9 | 74.0 | 143.1 tok/s | 1.77s | $0.009 | $0.20 / $1.20 |
+| Luna medium | 38.9 | 75.8 | 142.5 tok/s | 2.35s | $0.011 | $0.20 / $1.20 |
+| Luna high | 47.0 | 77.6 | 164.8 tok/s | 14.68s | $0.022 | $0.20 / $1.20 |
+| Luna xhigh | 50.1 | 78.6 | 157.7 tok/s | 50.93s | $0.032 | $0.20 / $1.20 |
+| Luna max | 52.3 | 78.6 | 162.3 tok/s | 136.64s | $0.047 | $0.20 / $1.20 |
 
 Terra is the price-and-speed member of the Codex family: $2.00 / $12.00 per 1M
 tokens, and 102 to 123 output tokens per second against 52 to 63 for Sol. It
@@ -919,14 +929,11 @@ Sources:
 `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` without disabling the Claude or
 Codex discovery providers and their skills, hooks, commands, or tools.
 
-Only durable user-level behavior absent from project context belongs there.
-That covers current official documentation for unfamiliar or version-sensitive
-interfaces, assessment-only requests staying read-only, standing Docks
-plan-review consent, the Simplified Technical English output standard, and the
-vendor version floor for model selection. Concrete routing stays in
-`config.yml`. The floor is stated in the context file because it also governs a
-model named in prose, which no configuration key can constrain. Skill and agent
-authoring rules belong in project context or lazily loaded skills.
+Only durable user-level behavior absent from project context belongs there:
+current official documentation for unfamiliar or version-sensitive interfaces,
+assessment-only requests staying read-only, and standing Docks plan-review
+consent. Model routing lives in `config.yml`; skill and agent authoring rules
+belong in project context or lazily loaded skills.
 
 An empty native file would contribute nothing and would not reliably shadow the
 external user context files, so the minimal explicit file is intentional.
