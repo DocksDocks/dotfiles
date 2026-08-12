@@ -276,6 +276,32 @@ Sources:
 - [OMP bundled agent definitions](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/task/agents.ts)
 - [OMP inspect_image tool](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/tools/inspect_image.md)
 
+## Intent: version floor per vendor
+
+Model choice is bounded before any other consideration:
+
+- OpenAI GPT: GPT-5.6 or later.
+- Anthropic Claude: Claude Opus 5 or later.
+
+The floor sets the model version, not the effort tier. Every tier of an allowed
+model stays available, which is why the reference table below carries all five
+tiers of only four models.
+
+A floor removes a recurring decision. Older releases keep reappearing in
+comparisons because they cost less per token, and each appearance costs a fresh
+argument about whether the saving is worth the capability loss. Deciding once at
+the vendor line ends that argument. A later release on the same line, for
+example GPT-5.7, satisfies the floor with no change here.
+
+The floor is stated in `omp/AGENTS.md` rather than in `config.yml`, because
+`config.yml` can only pin the models this configuration already selects. The
+rule also has to reach a model choice made in prose, such as a fallback chain
+proposed in review or a model named in an assessment.
+
+Source:
+
+- [OMP model and provider configuration](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/models.md)
+
 ## Reference: measured model tiers
 
 This table carries every effort tier of every model this configuration uses,
@@ -893,11 +919,14 @@ Sources:
 `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` without disabling the Claude or
 Codex discovery providers and their skills, hooks, commands, or tools.
 
-Only durable user-level behavior absent from project context belongs there:
-current official documentation for unfamiliar or version-sensitive interfaces,
-assessment-only requests staying read-only, and standing Docks plan-review
-consent. Model routing lives in `config.yml`; skill and agent authoring rules
-belong in project context or lazily loaded skills.
+Only durable user-level behavior absent from project context belongs there.
+That covers current official documentation for unfamiliar or version-sensitive
+interfaces, assessment-only requests staying read-only, standing Docks
+plan-review consent, the Simplified Technical English output standard, and the
+vendor version floor for model selection. Concrete routing stays in
+`config.yml`. The floor is stated in the context file because it also governs a
+model named in prose, which no configuration key can constrain. Skill and agent
+authoring rules belong in project context or lazily loaded skills.
 
 An empty native file would contribute nothing and would not reliably shadow the
 external user context files, so the minimal explicit file is intentional.
