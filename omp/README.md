@@ -239,19 +239,19 @@ other review agents, in `## Intent: aggressive but bounded delegation`.
 `plan`, the output is consumed as a decision rather than as a draft: a review
 or a plan is rarely re-litigated, so the extra latency buys something the next
 turn cannot recover. `default` joins them by explicit choice: the primary
-session takes the maximum reasoning depth on every turn, and pays 34.56s to the
+session takes the maximum reasoning depth on every turn, and pays 58.23s to the
 first answer token and $2.34 per task for it. Measured against `medium`, `max`
-gains 4.4 index points at roughly three times the cost per task.
+scores 63.1 against 58.6, at roughly three times the cost per task.
 
 `advisor` runs on the other provider at `high`. The advisor channel exists to
 review the primary session, so a second opinion from a different model family
-is worth more than one more Opus 5 instance. Sol-high scores 55.9 and answers
-in 14.07s at $0.55 per task, which keeps the review channel cheaper and faster
+is worth more than one more Opus 5 instance. Sol-high scores 57.3 and answers
+in 15.73s at $0.55 per task, which keeps the review channel cheaper and faster
 than the session it reviews.
 
 `designer` runs at `high`. Design output is consumed as a decision, like `slow`
-and `plan`, so it sits above the `medium` tier it used to occupy: 58.9 index
-points against 56.3, for $1.23 per task against $0.72. It stays below `max`
+and `plan`, so it sits above the `medium` tier it used to occupy: 61.5 index
+points against 58.6, for $1.23 per task against $0.72. It stays below `max`
 because a design answer is read and revised before anything acts on it.
 
 `vision` is dormant under this configuration and is set for the case where it
@@ -266,7 +266,7 @@ session-scoped `/vision` override, or `inspect_image.mode: on`. At that point
 the tool resolves `@vision` first, falling back to `@default`. Luna at `high`
 rather than an Opus tier, because reading an image is a perception task and the
 reasoning ladder is the wrong axis for it. Luna accepts image input, reaches the
-first answer token in 10.43s, and costs $0.022 per task against $1.23 for Opus
+first answer token in 14.68s, and costs $0.022 per task against $1.23 for Opus
 5-high. A higher tier would add thinking time to a call the user is waiting on
 without improving what the model sees.
 
@@ -280,30 +280,46 @@ Sources:
 
 This table carries every effort tier of every model this configuration uses,
 not only the tiers currently selected. A change of effort therefore needs no
-new measurement round.
+new measurement round. The table also carries GPT-5.6 Terra, which this
+configuration does not use. Terra is the third Codex model, so the table is
+where that choice stays checkable without a new measurement round.
 
-Artificial Analysis reports the following, retrieved 2026-08-06 against
-Intelligence Index v4.1. Every model listed has a 1,000,000-token context
+Artificial Analysis reports the following, retrieved 2026-08-12 against
+Intelligence Index v4.1.1. Every model listed has a 1,000,000-token context
 window. "Time to first answer token" includes model thinking time. "Cost per
 task" is the weighted average cost of one Intelligence Index task.
 
 | Model (tier) | Intelligence Index | Output speed | Time to first answer token | Cost per task | Price in / out per 1M |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Opus 5 low | 50.6 | 52.3 tok/s | 2.76s | $0.43 | $5.00 / $25.00 |
-| Opus 5 medium | 56.3 | 54.6 tok/s | 6.43s | $0.72 | $5.00 / $25.00 |
-| Opus 5 high | 58.9 | 53.4 tok/s | 11.73s | $1.23 | $5.00 / $25.00 |
-| Opus 5 xhigh | 60.1 | 54.8 tok/s | 26.27s | $1.80 | $5.00 / $25.00 |
-| Opus 5 max | 60.7 | 53.7 tok/s | 34.56s | $2.34 | $5.00 / $25.00 |
-| Sol low | 49.4 | 63.1 tok/s | 3.15s | $0.24 | $5.00 / $30.00 |
-| Sol medium | 53.6 | 60.7 tok/s | 6.19s | $0.39 | $5.00 / $30.00 |
-| Sol high | 55.9 | 63.5 tok/s | 14.07s | $0.55 | $5.00 / $30.00 |
-| Sol xhigh | 57.7 | 62.9 tok/s | 26.17s | $0.83 | $5.00 / $30.00 |
-| Sol max | 58.9 | 64.1 tok/s | 99.36s | $1.23 | $5.00 / $30.00 |
-| Luna low | 33.3 | 137.1 tok/s | 1.55s | $0.009 | $0.20 / $1.20 |
-| Luna medium | 38.1 | 155.7 tok/s | 3.66s | $0.011 | $0.20 / $1.20 |
-| Luna high | 46.1 | 175.0 tok/s | 10.43s | $0.022 | $0.20 / $1.20 |
-| Luna xhigh | 49.1 | 167.8 tok/s | 26.43s | $0.032 | $0.20 / $1.20 |
-| Luna max | 51.2 | 184.5 tok/s | 72.86s | $0.047 | $0.20 / $1.20 |
+| Opus 5 low | 52.5 | 52.7 tok/s | 3.08s | $0.43 | $5.00 / $25.00 |
+| Opus 5 medium | 58.6 | 53.5 tok/s | 8.59s | $0.72 | $5.00 / $25.00 |
+| Opus 5 high | 61.5 | 51.9 tok/s | 12.00s | $1.23 | $5.00 / $25.00 |
+| Opus 5 xhigh | 62.5 | 52.2 tok/s | 25.09s | $1.80 | $5.00 / $25.00 |
+| Opus 5 max | 63.1 | 54.1 tok/s | 58.23s | $2.34 | $5.00 / $25.00 |
+| Sol low | 50.7 | 51.6 tok/s | 3.28s | $0.23 | $5.00 / $30.00 |
+| Sol medium | 55.6 | 58.3 tok/s | 5.75s | $0.37 | $5.00 / $30.00 |
+| Sol high | 57.3 | 56.7 tok/s | 15.73s | $0.55 | $5.00 / $30.00 |
+| Sol xhigh | 59.0 | 60.7 tok/s | 43.35s | $0.81 | $5.00 / $30.00 |
+| Sol max | 60.9 | 62.7 tok/s | 153.87s | $1.23 | $5.00 / $30.00 |
+| Terra low | 41.3 | 102.3 tok/s | 1.67s | $0.094 | $2.00 / $12.00 |
+| Terra medium | 46.8 | 103.6 tok/s | 1.50s | $0.12 | $2.00 / $12.00 |
+| Terra high | 50.1 | 105.1 tok/s | 3.10s | $0.22 | $2.00 / $12.00 |
+| Terra xhigh | 52.8 | 107.7 tok/s | 29.77s | $0.31 | $2.00 / $12.00 |
+| Terra max | 56.6 | 123.2 tok/s | 173.50s | $0.51 | $2.00 / $12.00 |
+| Luna low | 33.9 | 143.1 tok/s | 1.77s | $0.009 | $0.20 / $1.20 |
+| Luna medium | 38.9 | 142.5 tok/s | 2.35s | $0.011 | $0.20 / $1.20 |
+| Luna high | 47.0 | 164.8 tok/s | 14.68s | $0.022 | $0.20 / $1.20 |
+| Luna xhigh | 50.1 | 157.7 tok/s | 50.93s | $0.032 | $0.20 / $1.20 |
+| Luna max | 52.3 | 162.3 tok/s | 136.64s | $0.047 | $0.20 / $1.20 |
+
+Terra is the price-and-speed member of the Codex family: $2.00 / $12.00 per 1M
+tokens, and 102 to 123 output tokens per second against 52 to 63 for Sol. It
+still loses on the axis this configuration selects for. Terra-max scores 56.6,
+below Sol-high at 57.3 for a comparable cost per task. Terra-high scores 50.1,
+which Luna-xhigh matches at 50.1 for one seventh of the cost. Artificial
+Analysis states the same result: for every Terra effort level there is a Sol or
+Luna level that is more intelligent at no extra cost, or as intelligent at
+lower cost.
 
 The Intelligence Index is a weighted composite of nine evaluations — agentic
 work 34%, coding 24%, scientific reasoning 24%, general 18% — measured
@@ -315,12 +331,11 @@ an individual coding task.
 
 Sources:
 
-- [Claude Opus 5 (medium)](https://artificialanalysis.ai/models/claude-opus-5-medium)
-- [Claude Opus 5 (xhigh)](https://artificialanalysis.ai/models/claude-opus-5-xhigh)
-- [Claude Opus 5 (max)](https://artificialanalysis.ai/models/claude-opus-5)
-- [GPT-5.6 Sol (high)](https://artificialanalysis.ai/models/gpt-5-6-sol-high)
-- [GPT-5.6 Sol (medium)](https://artificialanalysis.ai/models/gpt-5-6-sol-medium)
-- [GPT-5.6 Luna (high)](https://artificialanalysis.ai/models/gpt-5-6-luna-high)
+- [Claude Opus 5](https://artificialanalysis.ai/models/claude-opus-5)
+- [GPT-5.6 Sol](https://artificialanalysis.ai/models/gpt-5-6-sol)
+- [GPT-5.6 Terra](https://artificialanalysis.ai/models/gpt-5-6-terra)
+- [GPT-5.6 Luna](https://artificialanalysis.ai/models/gpt-5-6-luna)
+- [GPT-5.6 intelligence against cost](https://artificialanalysis.ai/articles/gpt-5-6-intelligence-vs-cost-across-sol-terra-luna)
 - [Artificial Analysis intelligence methodology](https://artificialanalysis.ai/methodology/intelligence-benchmarking)
 
 ## Intent: reasoning levels chosen explicitly, not inherited
@@ -399,9 +414,9 @@ different reason: they emit `reasoning.effort` as an enum, with each tier
 mapped to a separate wire value.
 
 Artificial Analysis corroborates the source reading: the five Opus 5 tiers
-measure as five distinct points. The Intelligence Index climbs from 50.6
-through 56.3, 58.9, and 60.1 to 60.7. Time to first answer token rises from
-2.76s to 34.56s. See `## Reference: measured model tiers` for the full table.
+measure as five distinct points. The Intelligence Index climbs from 52.5
+through 58.6, 61.5, and 62.5 to 63.1. Time to first answer token rises from
+3.08s to 58.23s. See `## Reference: measured model tiers` for the full table.
 
 Sources:
 
@@ -428,13 +443,13 @@ smol:   openai-codex/gpt-5.6-luna
 retained memories — so the role sets their depth. `smol` only supplies the
 model to agents that set their own, as described above. The model is chosen for
 price and throughput; where this configuration does pick a level, it picks the
-point on the ladder where reasoning is still nearly free in latency terms.
+point that balances score, cost, and time to the first answer token.
 
 All measured figures live in `## Reference: measured model tiers`; this
 section cites only the ones the argument needs.
 
-The case for Luna-high is that it is the knee of the curve. It scores 46.1 —
-12.8 points above `low` at 33.3, and only 3.0 below `xhigh` at 49.1. Luna
+The case for Luna-high is that it is the knee of the curve. It scores 47.0 —
+13.1 points above `low` at 33.9, and only 3.1 below `xhigh` at 50.1. Luna
 costs $0.20 / $1.20 per 1M tokens against $5.00 / $30.00 for Sol, one
 twenty-fifth of the Sol input price. Every Luna tier also generates output
 faster than any Sol or Opus 5 tier. Measured against the Intelligence Index
@@ -442,17 +457,17 @@ as a whole, Luna-high costs $0.022 per task where Sol-max costs $1.23 and
 Opus 5-max costs $2.34.
 
 Time to first answer token is why the ladder stops here. It includes thinking
-time. On Luna it does not rise smoothly: 1.55s at `low`, 3.66s at `medium`,
-10.43s at `high`, then 26.43s at `xhigh` and 72.86s at `max`. The step from
-`high` to `xhigh` costs 16 seconds and buys 3.0 index points. `commit` and
+time. On Luna it does not rise smoothly: 1.77s at `low`, 2.35s at `medium`,
+14.68s at `high`, then 50.93s at `xhigh` and 136.64s at `max`. The step from
+`high` to `xhigh` costs 36 seconds and buys 3.1 index points. `commit` and
 `tiny` run in the foreground of an otherwise finished action. There, that
 delay would be the dominant term, and nothing about the higher score
 shortens it.
 
 `high` is also the cheaper tier outright: $0.022 per task against $0.032 at
 `xhigh`. A workflow that wants these roles to feel instantaneous should drop
-to `medium`. That tier returns the first answer token in 3.66s and scores
-38.1, an 8.0-point drop from `high`.
+to `medium`. That tier returns the first answer token in 2.35s and scores
+38.9, an 8.1-point drop from `high`.
 
 Sources:
 
@@ -518,30 +533,29 @@ Luna's own chain.
 The policy preserves the purpose of each role across a provider outage:
 
 - Opus-led work — `default`, `slow`, `plan`, `designer` — recovers to Sol-high,
-  which scores 55.9. For `designer` at Opus 5-high, whose score is 58.9, the gap
-  is 3.0 index points. For the roles at Opus 5-max, whose score is 60.7, the
-  loss is larger. The configuration accepts both losses because the alternative
-  is no answer at all, and the recovered work still runs on a top-tier model
-  rather than a cheaper one.
+  which scores 57.3. For `designer`, that is a fall from Opus 5-high at 61.5.
+  For the roles at Opus 5-max, it is a fall from 63.1, so the loss is larger.
+  The configuration accepts both losses because the alternative is no answer at
+  all, and the recovered work still runs on a top-tier model rather than a
+  cheaper one.
 - `advisor` no longer recovers to Opus 5-high, and the `advisor` role chain that
   names it is now unreachable. Specificity puts the exact
   `openai-codex/gpt-5.6-sol` key ahead of any role chain, and that key now
   recovers to Luna at `max`. The advisor and every `task` subagent share one
   model, so one key decides both. This configuration resolves the conflict in
   favor of keeping subagents off Opus 5, and the advisor loses its cross-family
-  property on the retry path: Luna-max scores 51.2 against Sol-high's 55.9. The
+  property on the retry path: Luna-max scores 52.3 against Sol-high's 57.3. The
   role chain is retained because it costs nothing and becomes reachable again if
   the advisor moves to a model with no exact key of its own.
 - The model-specific Opus 5 key covers every Opus-led role, including `plan`,
   which declares no role chain of its own. It takes precedence over the role
   chains, so all Opus 5 work recovers to Sol-high.
-- Luna failures recover to Sol-medium first. Sol-medium scores 53.6 against
-  Luna-high's 46.1 and reaches the first answer token in 6.19s against
-  10.43s for Luna-high. A mechanical role therefore degrades into a quicker,
-  stronger, costlier model instead of a slower one. Sol costs twenty-five
-  times the Luna token price: $5.00 against $0.20 per 1M input tokens. That
-  price is acceptable on the retry path and would not be acceptable in
-  steady state.
+- Luna failures recover to Sol-medium first. Sol-medium scores 55.6 against
+  Luna-high's 47.0 and reaches the first answer token in 5.75s against 14.68s
+  for Luna-high. A mechanical role therefore degrades into a quicker, stronger,
+  costlier model instead of a slower one. Sol costs twenty-five times the Luna
+  token price: $5.00 against $0.20 per 1M input tokens. That price is
+  acceptable on the retry path and would not be acceptable in steady state.
 
 See `## Reference: measured model tiers` for the full set of measured
 figures.
