@@ -98,8 +98,11 @@ Ensure `$HOME/.local/bin` is on `PATH`.
 `curl` does not set the `com.apple.quarantine` attribute. macOS Gatekeeper
 therefore does not block the downloaded binary.
 
-The plain `./install.sh` command runs the `all` target. It already installs the
-`remote-pi` plugin and configures the relay. A relay problem prints a notice and
+The plain `./install.sh` command runs the `all` target. It treats `remote-pi`
+0.7.0 as a minimum version, not a fixed one: it installs the newest published
+release, keeps an already newer install, and upgrades anything older. When the
+version lookup fails, for example offline, it holds at the minimum instead of
+failing. It also configures the relay. A relay problem prints a notice and
 never blocks the rest of the install.
 
 From the dotfiles repository root, install the tracked settings, minimal global
@@ -146,9 +149,10 @@ The separate `omp/intercom.json` is installed as
 extension keeps its runtime files under the Pi agent directory rather than
 under `$HOME/.omp`.
 
-The `remote-pi` plugin stores its configuration at
-`$HOME/.pi/remote/config.json`. The plugin always uses this home-directory path.
-Unlike pi-intercom, `PI_CODING_AGENT_DIR` does not change this path.
+The installer manages the global `remote-pi` relay configuration at
+`$HOME/.pi/remote/config.json`. Version 0.7.0 stores each session setup at
+`<cwd>/.pi/remote-pi/config.json`. `PI_CODING_AGENT_DIR` does not change either
+path.
 
 The resulting files are installed with mode `0600`, and `config.yml` is backed
 up only when the merged output changes the destination. Local runtime files such
@@ -816,19 +820,33 @@ unset it connects to the public `demo.nats.io` and forks a `sesh` process, and
 its key-value and object buckets need JetStream, so core NATS is not enough.
 
 The remaining four candidates were installed and executed, not only read.
-[`remote-pi`](https://github.com/jacobaraujo7/remote_pi) meets all three
-requirements. It loads under OMP v17.2.12 with no warning and registers
-`agent_send`, `agent_request`, and `list_peers`. Every session must first run the
-`/remote-pi join` wizard, which offers an external relay; declining it keeps the
-mesh local to the machine. Accepting it costs confidentiality: its `relay/README`
-states that a relay operator can see routed plaintext, so the shared relay is not
-an end-to-end boundary. Running `jacobmoura7/remote-pi-relay` under `docker run`
-and pointing the extension at it removes that operator from the trust path. The
-setter is `/remote-pi set-relay <url>`, followed by a session restart; the
-documented `/remote-pi relay url` and `/remote-pi relay stop` are inert in 0.5.5
-and only reprint the status panel. Contrast `/collab`, which seals every payload with
-AES-256-GCM before the socket, so its relay sees only ciphertext, room ids, and
-frame sizes. Peers are addressed as `<cwd>@<name>`, so addressing
+Installed [`remote-pi`](https://github.com/jacobaraujo7/remote_pi) 0.7.0 meets
+all three requirements. It registers `agent_send`, `agent_request`, and
+`list_peers`. The bare `/remote-pi` command runs the setup wizard when the
+current folder has no local configuration. No `/remote-pi join` command is
+registered. For a configured folder, `/remote-pi` always joins the local mesh.
+
+It starts the relay only when the local configuration enables relay auto-start.
+An interactive session also connects automatically at startup when relay
+auto-start is enabled.
+
+Relay use costs confidentiality. Version 0.7.0 sends base64-encoded JSON without
+encryption or a message authentication code. A relay operator can therefore see
+routed plaintext.
+
+Running `jacobmoura7/remote-pi-relay` under `docker run` and pointing the
+extension at it removes that operator from the trust path. Both
+`/remote-pi set-relay <url>` and `/remote-pi relay url <url>` persist a new relay
+URL. Run `/remote-pi relay stop`. Then run `/remote-pi relay start` to apply it.
+The stop command disconnects the relay and leaves the local mesh connected.
+
+`/remote-pi relay status` prints the status panel. `/remote-pi config` prints
+the effective relay URL and its source.
+
+Contrast `/collab`, which seals every payload with AES-256-GCM before the
+socket, so its relay sees only ciphertext, room ids, and frame sizes.
+
+Peers are addressed as `<cwd>@<name>`, so addressing
 crosses projects by construction. Its `agent_request` returned the peer's answer
 as the tool result. That was proven with a fact the sender could not hold: the
 peer's working directory. Its own README, however, offers `agent_request` "only

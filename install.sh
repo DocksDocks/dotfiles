@@ -3,6 +3,10 @@
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# A floor, not a pin: the minimum version this setup requires. Newer published
+# releases install automatically, and the floor only stops the installer from
+# dropping below the oldest version verified against this configuration.
+readonly remote_pi_floor="0.7.0"
 
 backup_if_changed() {
   local source_file="$1"
@@ -556,20 +560,119 @@ install_intercom_plugin() {
   fi
 }
 
+# True when $1 is a version this installer can compare: exactly three numeric
+# components, as npm requires, then an optional prerelease tag and optional
+# build metadata, which may appear together as in `1.2.3-rc.1+local`.
+#
+# An abbreviated `99.0` is malformed, not a lenient spelling of `99.0.0`.
+# Accepting it would let a corrupt manifest outrank the floor and skip repair.
+version_is_valid() {
+  local pattern='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+
+  [[ "$1" =~ $pattern ]]
+}
+
+# True when version $1 is at least version $2. Compares numeric components in
+# bash rather than with `sort -V`, which base macOS sort lacks.
+#
+# Anything unparseable answers false rather than being coerced into a number.
+# Stripping stray characters would read `9garbage.0.0` as 9.0.0 and let a
+# corrupt install pass for current, so a bad version always triggers repair.
+#
+# Prerelease handling is deliberately narrow, covering only the rule this
+# installer needs: a prerelease ranks below the release it precedes. Two
+# different prereleases of one release are treated as not satisfying each
+# other, which reinstalls the target instead of guessing an order. This is not
+# full semver precedence, which compares dot-separated tag identifiers.
+version_at_least() {
+  local -a left right
+  local i l r left_core right_core left_tag right_tag
+
+  version_is_valid "$1" || return 1
+  version_is_valid "$2" || return 1
+
+  # Build metadata carries no precedence in semver, so `0.7.0+local` and
+  # `0.7.0` are the same version. Discard it before anything else, or a local
+  # build would read as older than the release it was built from.
+  left_core="${1%%+*}"
+  right_core="${2%%+*}"
+
+  IFS='.' read -r -a left <<< "${left_core%%-*}"
+  IFS='.' read -r -a right <<< "${right_core%%-*}"
+  # Both arrays hold exactly three components; version_is_valid guarantees it.
+  for i in 0 1 2; do
+    l="${left[i]}"
+    r="${right[i]}"
+    if (( 10#$l > 10#$r )); then return 0; fi
+    if (( 10#$l < 10#$r )); then return 1; fi
+  done
+
+  left_tag="${left_core#"${left_core%%-*}"}"
+  right_tag="${right_core#"${right_core%%-*}"}"
+  if [[ -z "$left_tag" ]]; then return 0; fi
+  if [[ -z "$right_tag" ]]; then return 1; fi
+  [[ "$left_tag" == "$right_tag" ]]
+}
+
+installed_remote_pi_version() {
+  local manifest="$HOME/.omp/plugins/node_modules/remote-pi/package.json"
+
+  [[ -r "$manifest" ]] || return 0
+  sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" |
+    sed -n '1p'
+}
+
+# Latest published version, or empty when npm cannot answer or answers with
+# something that is not a version. Empty is not an error: a lookup failure is
+# captured here so `pipefail` cannot abort the whole installer offline, and an
+# unparseable answer is discarded so it can never reach `omp install` as a
+# package spec. Either way the caller holds at the floor.
+published_remote_pi_version() {
+  local latest
+
+  command -v npm >/dev/null 2>&1 || return 0
+  latest="$(npm view remote-pi version 2>/dev/null)" || return 0
+  latest="${latest//[[:space:]]/}"
+  version_is_valid "$latest" || return 0
+  printf '%s' "$latest"
+}
+
 install_remote_plugin() {
-  local plugin_list
+  local plugin_list installed published target="$remote_pi_floor"
 
   if ! command -v omp >/dev/null 2>&1; then
     printf 'Cannot install remote-pi: omp is not on PATH\n' >&2
     return 1
   fi
 
-  plugin_list="$(omp plugin list 2>/dev/null || true)"
-  if [[ "$plugin_list" == *remote-pi* ]]; then
-    printf 'remote-pi is already installed; skipping plugin install\n'
-  else
-    omp install remote-pi
+  published="$(published_remote_pi_version)"
+  if [[ -n "$published" ]] && version_at_least "$published" "$remote_pi_floor"; then
+    target="$published"
   fi
+
+  plugin_list="$(omp plugin list 2>/dev/null || true)"
+  if [[ "$plugin_list" != *remote-pi* ]]; then
+    omp install "remote-pi@${target}"
+    return
+  fi
+
+  installed="$(installed_remote_pi_version)"
+  if [[ -z "$installed" ]]; then
+    printf 'Cannot verify the installed remote-pi version; installing %s\n' "$target"
+    omp install "remote-pi@${target}"
+    return
+  fi
+
+  # Covers a locally built version ahead of the registry, so a routine install
+  # never downgrades one.
+  if version_at_least "$installed" "$target"; then
+    printf 'remote-pi %s meets the %s floor; skipping plugin install\n' \
+      "$installed" "$remote_pi_floor"
+    return
+  fi
+
+  printf 'Updating remote-pi %s to %s (floor %s)\n' "$installed" "$target" "$remote_pi_floor"
+  omp install "remote-pi@${target}"
 }
 
 install_intercom() {
@@ -585,6 +688,12 @@ install_remote() {
 usage() {
   printf 'Usage: %s [all|hooks|omp|intercom|remote]\n' "${0##*/}"
 }
+
+# Tests source this script to exercise single functions. Sourcing must define
+# them without running a target.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
 
 case "${1:-all}" in
   all)

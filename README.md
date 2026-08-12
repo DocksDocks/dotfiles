@@ -24,9 +24,11 @@ cd dotfiles
 ./install.sh
 ```
 
-The plain `./install.sh` command runs the `all` target. It already installs the
-`remote-pi` plugin and configures the relay. A relay problem prints a notice and
-never blocks the rest of the install.
+The plain `./install.sh` command runs the `all` target. It treats `remote-pi`
+0.7.0 as a minimum version, not a fixed one: it installs the newest published
+release, keeps an already newer install, and upgrades anything older. It also
+configures the relay. A relay problem prints a notice and never blocks the rest
+of the install.
 
 Install only one configuration:
 
