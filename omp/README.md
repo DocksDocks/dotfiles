@@ -223,16 +223,17 @@ reasoning that model spends.
 
 | Roles | Selector | Intent |
 | --- | --- | --- |
-| `default`, `slow`, `plan` | `anthropic/claude-opus-5:max` | Primary session, difficult investigations, the bundled reviewer, and planning |
-| `designer` | `anthropic/claude-opus-5:medium` | Design specialization |
+| `default`, `slow`, `plan` | `anthropic/claude-opus-5:max` | Primary session, difficult investigations, and planning |
+| `designer` | `anthropic/claude-opus-5:high` | Design specialization |
 | `advisor` | `openai-codex/gpt-5.6-sol:high` | Advisor channel, on the second provider |
-| `vision` | `anthropic/claude-opus-5:high` | Image inspection; dormant while the active model accepts images |
+| `vision` | `openai-codex/gpt-5.6-luna:high` | Image inspection; dormant while the active model accepts images |
 | `task` | `openai-codex/gpt-5.6-sol:high` | Delegated implementation |
 | `commit`, `tiny` | `openai-codex/gpt-5.6-luna:high` | Commit helpers, titles, memory utilities |
 | `smol` | `openai-codex/gpt-5.6-luna` | Backs the bundled research agents; level left to each agent |
 
-The bundled OMP reviewer resolves through the `slow` role, while the general
-task worker resolves through `task`.
+The general task worker resolves through `task`. The bundled reviewer resolves
+through `slow` by default. This configuration overrides that agent, and three
+other review agents, in `## Intent: aggressive but bounded delegation`.
 
 `default`, `slow`, and `plan` sit at the top of the ladder. For `slow` and
 `plan`, the output is consumed as a decision rather than as a draft: a review
@@ -246,8 +247,12 @@ gains 4.4 index points at roughly three times the cost per task.
 review the primary session, so a second opinion from a different model family
 is worth more than one more Opus 5 instance. Sol-high scores 55.9 and answers
 in 14.07s at $0.55 per task, which keeps the review channel cheaper and faster
-than the session it reviews. `designer` stays at `medium` for the same cost
-reason that used to apply to the primary session.
+than the session it reviews.
+
+`designer` runs at `high`. Design output is consumed as a decision, like `slow`
+and `plan`, so it sits above the `medium` tier it used to occupy: 58.9 index
+points against 56.3, for $1.23 per task against $0.72. It stays below `max`
+because a design answer is read and revised before anything acts on it.
 
 `vision` is dormant under this configuration and is set for the case where it
 is not. It backs the `inspect_image` tool, which delegates an image to a
@@ -258,10 +263,12 @@ registered and the role is never consulted.
 
 It becomes live when that stops holding: an active model without image input, a
 session-scoped `/vision` override, or `inspect_image.mode: on`. At that point
-the tool resolves `@vision` first, falling back to `@default`. `high` rather
-than `max` because reading an image is a perception task and the reasoning
-ladder is the wrong axis for it — the top tier would add thinking time to a
-call the user is waiting on without improving what the model sees.
+the tool resolves `@vision` first, falling back to `@default`. Luna at `high`
+rather than an Opus tier, because reading an image is a perception task and the
+reasoning ladder is the wrong axis for it. Luna accepts image input, reaches the
+first answer token in 10.43s, and costs $0.022 per task against $1.23 for Opus
+5-high. A higher tier would add thinking time to a call the user is waiting on
+without improving what the model sees.
 
 Sources:
 
@@ -468,11 +475,13 @@ retry:
       - openai-codex/gpt-5.6-sol:high
     designer:
       - openai-codex/gpt-5.6-sol:high
+    advisor:
+      - anthropic/claude-opus-5:high
     openai-codex/gpt-5.6-luna:
       - openai-codex/gpt-5.6-sol:medium
       - anthropic/claude-opus-5:medium
     openai-codex/gpt-5.6-sol:
-      - anthropic/claude-opus-5:high
+      - openai-codex/gpt-5.6-luna:max
     anthropic/claude-opus-5:
       - openai-codex/gpt-5.6-sol:high
 ```
@@ -488,41 +497,44 @@ tested first. Every model this configuration selects owns such a key, so the
 `default` chain covers a model picked by hand with `/model`. Its first entry
 names an Anthropic model, so that path also leaves the Codex provider.
 
-Every chain must be able to leave the provider it started on. A quota wall is
-provider-wide, so a chain that recovers Sol onto Sol is a dead end. The two
-model-specific keys make the escape bidirectional: Anthropic failures move to
-Sol, and Sol failures move to Opus 5. Luna lists Sol first, because a single
-model outage is more common than a provider outage, and Opus 5 second, for the
-case where the whole Codex provider is unavailable. The retry policy skips
-selectors that are still cooling down, so the two directions cannot ping-pong.
+Most chains must be able to leave the provider they started on. A quota wall is
+provider-wide, so a chain that recovers a model onto its own provider is a dead
+end for that failure. Anthropic failures move to Sol. Luna lists Sol first,
+because a single model outage is more common than a provider outage, and Opus 5
+second, for the case where the whole Codex provider is unavailable. The retry
+policy skips selectors that are still cooling down, so the directions cannot
+ping-pong.
+
+The Sol chain is the deliberate exception. It recovers onto Luna at `max`, which
+keeps delegated work inside Codex. Opus 5 max is reserved for the orchestrating
+session. The previous entry, Opus 5 high, was the only route from a subagent
+onto Opus. Luna shares the Codex quota, so this chain recovers a Sol-specific
+outage or a classifier refusal, but not an account-wide limit.
+
+OMP pins the fallback role at the first switch and reuses it. A Sol subagent
+that fails again keeps walking this one-entry chain and stops. It never enters
+Luna's own chain.
 
 The policy preserves the purpose of each role across a provider outage:
 
-- Opus-led work — `default`, `slow`, `plan`, `designer`, `vision` — recovers
-  to Sol-high, which scores 55.9. For `designer` at Opus 5-medium, whose score
-  is 56.3, the gap is 0.4 index points and recovery is close to lossless. For
-  the roles at Opus 5-max, whose score is 60.7, the loss is measurable. The
-  configuration accepts that loss because the alternative is no answer at all,
-  and the recovered work still runs on a top-tier model rather than a cheaper
-  one.
-- `advisor` recovers to Opus 5-high. The advisor channel therefore keeps its
-  defining property across an outage — it reviews the session from a different
-  model family. The level is `high` because a review must not become weaker
-  than the channel it replaces. Opus 5-medium scores 56.3 against Sol-high's
-  55.9, a gap of 0.4 index points. Opus 5-high scores 58.9, and its higher
-  price applies only on the retry path: $1.23 per task against $0.72, and
-  11.73s to the first answer token against 6.43s. The exact
-  `openai-codex/gpt-5.6-sol` key already produces that recovery, because
-  specificity puts model keys ahead of role keys, and the same key serves
-  `task` at Sol-high so delegated work recovers at the same depth. The role
-  chain is tracked anyway. Without it, moving the advisor to a model that has
-  no exact key of its own leaves the role chain OMP writes when a fallback is
-  set through the interface, and that chain names the advisor's own model. The
-  effective chain then drops the duplicate entry, ends at length one, and
-  yields no candidate, so the advisor loses its fallback with no warning.
-- The model-specific Opus 5 key covers every Opus-led role, including `plan`
-  and `vision`, which declare no role chain of their own. It takes precedence
-  over the role chains, so all Opus 5 work recovers to Sol-high.
+- Opus-led work — `default`, `slow`, `plan`, `designer` — recovers to Sol-high,
+  which scores 55.9. For `designer` at Opus 5-high, whose score is 58.9, the gap
+  is 3.0 index points. For the roles at Opus 5-max, whose score is 60.7, the
+  loss is larger. The configuration accepts both losses because the alternative
+  is no answer at all, and the recovered work still runs on a top-tier model
+  rather than a cheaper one.
+- `advisor` no longer recovers to Opus 5-high, and the `advisor` role chain that
+  names it is now unreachable. Specificity puts the exact
+  `openai-codex/gpt-5.6-sol` key ahead of any role chain, and that key now
+  recovers to Luna at `max`. The advisor and every `task` subagent share one
+  model, so one key decides both. This configuration resolves the conflict in
+  favor of keeping subagents off Opus 5, and the advisor loses its cross-family
+  property on the retry path: Luna-max scores 51.2 against Sol-high's 55.9. The
+  role chain is retained because it costs nothing and becomes reachable again if
+  the advisor moves to a model with no exact key of its own.
+- The model-specific Opus 5 key covers every Opus-led role, including `plan`,
+  which declares no role chain of its own. It takes precedence over the role
+  chains, so all Opus 5 work recovers to Sol-high.
 - Luna failures recover to Sol-medium first. Sol-medium scores 53.6 against
   Luna-high's 46.1 and reaches the first answer token in 6.19s against
   10.43s for Luna-high. A mechanical role therefore degrades into a quicker,
@@ -596,6 +608,11 @@ task:
   maxRecursionDepth: 3
   softRequestBudget: 200
   softRequestBudgetNotice: true
+  agentModelOverrides:
+    reviewer: "@task"
+    security-reviewer: "@task"
+    code-reviewer: "@task"
+    plan-reviewer: "@task"
 ```
 
 `task.eager: always` makes delegation the default for decomposable work. OMP's
@@ -617,6 +634,14 @@ solely for duration.
 Task isolation remains disabled. Non-isolated agents can stay live and receive
 follow-up messages, while isolated agents are parked after their workspace is
 merged and cannot be resumed.
+
+`task.agentModelOverrides` keeps Opus 5 max on the orchestrating session. Two
+routes put subagents on it otherwise. The bundled `reviewer` declares `@slow` in
+its frontmatter. The bundled `security-reviewer` and the `plan-lifecycle` plugin
+agents declare no model, so they inherit the parent's active model. An override
+outranks both frontmatter and the parent model, so pinning these four agents to
+`@task` routes them to Sol-high. The review agents then run on a different model
+family from the session they review, which keeps their findings independent.
 
 Sources:
 
