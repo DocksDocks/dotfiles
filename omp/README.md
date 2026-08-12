@@ -278,13 +278,14 @@ is, at 84.7. The role selects for cost and latency instead, because
 `inspect_image` runs in the foreground of a call the user is waiting on.
 
 Sol at `low` scores 81.0 and answers in 3.28s, the highest score of any tier
-under four seconds. Opus 5 at `low` is the nearest alternative, 1.2 points lower
-at roughly twice the cost per task: $0.43 against $0.23.
+under four seconds. Opus 5 at `low` is the nearest alternative and scores 1.2
+points lower. The cost column separates them further, $0.23 against $0.43, but
+that column prices one Intelligence Index task, not one image call. Treat it as
+a relative price proxy between models, not as the cost of `inspect_image`.
 
-MMMU-Pro is multiple-choice reasoning over images. It is the only independent
-image measurement published for these models, and it is not a test of
-screenshot description or of text extraction. Its transfer to `inspect_image`
-work is therefore an inference, not a measurement.
+MMMU-Pro is the image measurement in this table. It is multiple-choice reasoning
+over images, not a test of screenshot description or of text extraction. Its
+transfer to `inspect_image` work is therefore an inference, not a measurement.
 
 Sources:
 
