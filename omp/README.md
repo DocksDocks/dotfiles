@@ -271,9 +271,20 @@ Artificial Analysis measures image input separately from the Intelligence Index,
 with MMMU-Pro. That score barely responds to reasoning effort. Across the Sol
 tiers it moves from 81.0 at `low` to 83.4 at `max`, while time to the first
 answer token moves from 3.28s to 153.87s. The ladder buys latency here, not
-perception, so the role takes the lowest tier of the strongest image model the
-floor allows. Sol at `low` scores 81.0 and answers in 3.28s, ahead of every
-other tier that answers in under four seconds.
+perception.
+
+Sol at `low` is not the strongest image model the floor allows. Opus 5 at `max`
+is, at 84.7. The role selects for cost and latency instead, because
+`inspect_image` runs in the foreground of a call the user is waiting on.
+
+Sol at `low` scores 81.0 and answers in 3.28s, the highest score of any tier
+under four seconds. Opus 5 at `low` is the nearest alternative, 1.2 points lower
+at roughly twice the cost per task: $0.43 against $0.23.
+
+MMMU-Pro is multiple-choice reasoning over images. It is the only independent
+image measurement published for these models, and it is not a test of
+screenshot description or of text extraction. Its transfer to `inspect_image`
+work is therefore an inference, not a measurement.
 
 Sources:
 
