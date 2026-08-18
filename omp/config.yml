@@ -80,23 +80,33 @@ providers:
     - mojeek
     - public
 retry: 
+  usageAwareFallback: true
   fallbackChains: 
     default: 
+      - openai-codex/gpt-5.6-sol:high
       - anthropic/claude-opus-5:medium
-      - openai-codex/gpt-5.6-sol:high
-    slow: 
-      - openai-codex/gpt-5.6-sol:high
-    designer: 
-      - openai-codex/gpt-5.6-sol:high
+      - openai-codex/gpt-5.6-luna:max
     advisor: 
-      - anthropic/claude-opus-5:high
-    openai-codex/gpt-5.6-luna: 
+      - anthropic/claude-opus-5:medium
+      - openai-codex/gpt-5.6-luna:high
+    task: 
+      - anthropic/claude-opus-5:medium
+      - openai-codex/gpt-5.6-luna:max
+    vision: 
+      - anthropic/claude-opus-5:low
+      - openai-codex/gpt-5.6-luna:low
+    smol: 
       - openai-codex/gpt-5.6-sol:medium
       - anthropic/claude-opus-5:medium
-    openai-codex/gpt-5.6-sol: 
-      - openai-codex/gpt-5.6-luna:max
-    anthropic/claude-opus-5: 
+    tiny: 
+      - openai-codex/gpt-5.6-sol:medium
+      - anthropic/claude-opus-5:medium
+    commit: 
+      - openai-codex/gpt-5.6-sol:medium
+      - anthropic/claude-opus-5:medium
+    anthropic/claude-fable-5: 
       - openai-codex/gpt-5.6-sol:high
+      - anthropic/claude-opus-5:high
 omitThinking: false
 includeWorkspaceTree: false
 autocompleteMaxVisible: 10

@@ -534,53 +534,111 @@ Every entry here is therefore suffixed:
 
 ```yaml
 retry:
+  usageAwareFallback: true
   fallbackChains:
     default:
+      - openai-codex/gpt-5.6-sol:high
       - anthropic/claude-opus-5:medium
-      - openai-codex/gpt-5.6-sol:high
-    slow:
-      - openai-codex/gpt-5.6-sol:high
-    designer:
-      - openai-codex/gpt-5.6-sol:high
+      - openai-codex/gpt-5.6-luna:max
     advisor:
-      - anthropic/claude-opus-5:high
-    openai-codex/gpt-5.6-luna:
+      - anthropic/claude-opus-5:medium
+      - openai-codex/gpt-5.6-luna:high
+    task:
+      - anthropic/claude-opus-5:medium
+      - openai-codex/gpt-5.6-luna:max
+    vision:
+      - anthropic/claude-opus-5:low
+      - openai-codex/gpt-5.6-luna:low
+    smol:
       - openai-codex/gpt-5.6-sol:medium
       - anthropic/claude-opus-5:medium
-    openai-codex/gpt-5.6-sol:
-      - openai-codex/gpt-5.6-luna:max
-    anthropic/claude-opus-5:
+    tiny:
+      - openai-codex/gpt-5.6-sol:medium
+      - anthropic/claude-opus-5:medium
+    commit:
+      - openai-codex/gpt-5.6-sol:medium
+      - anthropic/claude-opus-5:medium
+    anthropic/claude-fable-5:
       - openai-codex/gpt-5.6-sol:high
+      - anthropic/claude-opus-5:high
 ```
 
-Resolution picks the chain that owns the failing model by specificity: the
-exact `provider/model-id` key first, then a `provider/*` wildcard, then the
-role chain, then `default`. Two consequences shape the table above.
+Nearly every key names a role. Resolution picks the chain that owns the failing
+model by specificity: the exact `provider/model-id` key first, then a
+`provider/*` wildcard, then the role chain, then `default`. A model-oriented key
+therefore outranks every role chain. This configuration keeps a role key for
+every model it selects, because one model-oriented key replaces the chain of
+every role that shares that model. The `advisor` and `task` roles share
+GPT-5.6 Sol, so an exact Sol key decided both and left the advisor no reachable
+chain.
 
-The `default` chain is not the chain for the `default` role. OMP copies it
-onto every role that declares no chain of its own. It decides a recovery only
-when no model key matches, because the exact `provider/model-id` keys are
-tested first. Every model this configuration selects owns such a key, so the
-`default` chain covers a model picked by hand with `/model`. Its first entry
-names an Anthropic model, so that path also leaves the Codex provider.
+The single model-oriented key, `anthropic/claude-fable-5`, is safe for that
+reason: no role selects Claude Fable 5. The key shadows nothing, and it applies
+only when the user selects Fable by hand with `/model`. Fable recovers to Sol at
+`high`, then to Opus 5 at `high`.
 
-Most chains must be able to leave the provider they started on. A quota wall is
-provider-wide, so a chain that recovers a model onto its own provider is a dead
-end for that failure. Anthropic failures move to Sol. Luna lists Sol first,
-because a single model outage is more common than a provider outage, and Opus 5
-second, for the case where the whole Codex provider is unavailable. The retry
-policy skips selectors that are still cooling down, so the directions cannot
-ping-pong.
+`omp usage` reports an additional weekly bucket for that line, `Claude 7 Day
+(Fable)`, so a Fable limit does not imply an Opus 5 limit. The chain still
+leaves the provider at its first entry, which keeps the recovery valid for an
+account-wide Anthropic wall. `AGENTS.md` scopes the version floor to selected
+models, so this key may name a model outside the floor while both of its entries
+satisfy it.
 
-The Sol chain is the deliberate exception. It recovers onto Luna at `max`, which
-keeps delegated work inside Codex. Opus 5 max is reserved for the orchestrating
-session. The previous entry, Opus 5 high, was the only route from a subagent
-onto Opus. Luna shares the Codex quota, so this chain recovers a Sol-specific
-outage or a classifier refusal, but not an account-wide limit.
+Warning: the installer overlays `config.yml` recursively and never deletes a
+destination-only mapping key. Removing a chain key from this repository
+therefore leaves the deployed key in place. Delete such a key by hand from
+`~/.omp/agent/config.yml` after the removal. This change removed five keys that
+way: the exact keys for GPT-5.6 Luna, GPT-5.6 Sol and Claude Opus 5, and the
+obsolete `slow` and `designer` role keys.
 
-OMP pins the fallback role at the first switch and reuses it. A Sol subagent
-that fails again keeps walking this one-entry chain and stops. It never enters
-Luna's own chain.
+OMP drops an entry that names the failing role's own model, because that entry
+duplicates the primary. A chain emptied this way leaves the role with no
+candidate and reports no warning. Each chain above therefore omits its own
+model. `smol`, `tiny` and `commit` declare explicit chains for that reason: the
+`default` chain ends on Luna at `max`, which is their own model.
+
+`plan`, `slow` and `designer` declare no chain, so OMP copies `default` onto
+them. That result is correct, because all three run Claude Opus 5, and the
+Opus 5 entry drops out for them as a duplicate. Their recovery is Sol-high,
+then Luna-max. The `default` chain also covers a model picked by hand with
+`/model`, which is why it carries an Anthropic entry: a hand-picked Codex model
+needs an escape from the Codex provider.
+
+OMP pins the chain at the first switch and walks it to the end. A chain never
+continues into another model's chain, so each chain above is complete on its
+own.
+
+Two quota domains govern the role chains. Every non-Spark Codex model shares
+one plan pool, and the Anthropic 5-hour and 7-day windows are account-wide. An
+entry survives a plan wall only when it crosses that boundary. Every chain
+above crosses it.
+
+The two directions order their entries by the failure that is more likely for
+the starting family:
+
+- Opus-backed roles place Sol first, because a single model outage is more
+  common than a provider outage.
+- Sol-backed roles — `advisor`, `task` and `vision` — place the Anthropic entry
+  first. A Codex plan wall makes a Codex-first entry a certain failure that
+  only spends retries and backoff.
+- Luna-backed roles place Sol first and Opus 5 second, which keeps a mechanical
+  role inside the cheaper provider for a single model outage.
+
+A `provider/*` entry stays unusable in this installation. Such an entry keeps
+the failing model id and swaps the provider, and OMP skips an id that the
+target provider does not serve. Three providers are available, and each
+configured model id exists on exactly one of them. Cross-family recovery
+therefore needs an explicit `provider/model-id:level` entry.
+
+`usageAwareFallback` moves the switch ahead of the failure. OMP runs a
+preflight against the plan usage report before a provider request, and applies
+a chain entry while the plan still holds a reserve. The threshold stays at the
+`retry.usageReservePct` default of 10 percent. The policy stays at the
+`retry.usageReservePolicy` default of `confirm`, which asks an interactive
+session before it spends the reserve and keeps the current model when the
+answer is no. A depleted plan applies an eligible entry without that question.
+The `fail-closed` policy rejects the request instead of recovering, so this
+configuration does not use it.
 
 The policy preserves the purpose of each role across a provider outage:
 
@@ -590,18 +648,18 @@ The policy preserves the purpose of each role across a provider outage:
   The configuration accepts both losses because the alternative is no answer at
   all, and the recovered work still runs on a top-tier model rather than a
   cheaper one.
-- `advisor` no longer recovers to Opus 5-high, and the `advisor` role chain that
-  names it is now unreachable. Specificity puts the exact
-  `openai-codex/gpt-5.6-sol` key ahead of any role chain, and that key now
-  recovers to Luna at `max`. The advisor and every `task` subagent share one
-  model, so one key decides both. This configuration resolves the conflict in
-  favor of keeping subagents off Opus 5, and the advisor loses its cross-family
-  property on the retry path: Luna-max scores 52.3 against Sol-high's 57.3. The
-  role chain is retained because it costs nothing and becomes reachable again if
-  the advisor moves to a model with no exact key of its own.
-- The model-specific Opus 5 key covers every Opus-led role, including `plan`,
-  which declares no role chain of its own. It takes precedence over the role
-  chains, so all Opus 5 work recovers to Sol-high.
+- `advisor` recovers to Opus 5-medium, which scores 58.6 against Sol-high at
+  57.3. The tier is chosen for speed: Opus 5-medium returns the first answer
+  token in 8.59s against 12.00s at `high`. The advisor regains a cross-family
+  recovery, which the previous Luna-max entry did not provide.
+- `task` recovers to Opus 5-medium as well, so delegated work now reaches
+  Opus 5. This reverses the earlier decision to keep subagents off Opus 5. That
+  decision left the Sol chain no escape from an account-wide Codex limit, and a
+  subagent then failed outright. `modelRoles` still reserves `max` for the
+  orchestrating session, so a subagent recovers at 58.6 rather than 63.1.
+- `vision` recovers to Opus 5-low, which scores 79.8 on the image evaluation
+  against 81.0 for Sol-low. The level stays at `low`, because the role reads
+  images rather than reasons at length.
 - Luna failures recover to Sol-medium first. Sol-medium scores 55.6 against
   Luna-high's 47.0 and reaches the first answer token in 5.75s against 14.68s
   for Luna-high. A mechanical role therefore degrades into a quicker, stronger,
