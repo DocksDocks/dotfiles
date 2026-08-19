@@ -24,6 +24,8 @@ backup_if_changed() {
 
 # Merge the serializer-produced block YAML without requiring a YAML runtime.
 # Mapping nodes merge recursively; every other source node replaces its target.
+# A destination-only key survives, except a model-oriented fallback chain, which
+# the merge drops. See is_model_chain_key.
 merge_omp_config() {
   local source_file="$1"
   local target_file="$2"
@@ -179,6 +181,29 @@ merge_omp_config() {
       print substr(line, 1, indent + colon)
     }
 
+    function target_key_path(id,    path, cursor) {
+      path = ""
+      for (cursor = id; cursor != 0; cursor = node_parent["target" SUBSEP cursor]) {
+        if (path == "") {
+          path = node_key["target" SUBSEP cursor]
+        } else {
+          path = node_key["target" SUBSEP cursor] "." path
+        }
+      }
+      return path
+    }
+
+    # A fallback-chain key that contains "/" names a model or a provider
+    # wildcard instead of a role. OMP resolves such a key ahead of every role
+    # chain, so a copy that this repository no longer declares silently
+    # overrides the role chains beside it. Drop it. A role key never contains
+    # "/", so a role that only the destination declares survives the merge,
+    # including a role this repository has never heard of.
+    function is_model_chain_key(parent, id) {
+      return index(node_key["target" SUBSEP id], "/") != 0 &&
+        target_key_path(parent) == "retry.fallbackChains"
+    }
+
     function render_mapping(source_parent, target_parent,    i, source_index, target_index, target_id, key) {
       for (i = 1; i <= node_count["source"]; i++) {
         source_index = "source" SUBSEP i
@@ -205,9 +230,14 @@ merge_omp_config() {
         }
 
         key = node_key[target_index]
-        if (node_lookup["source" SUBSEP source_parent SUBSEP key] == "") {
-          print_node("target", i)
+        if (node_lookup["source" SUBSEP source_parent SUBSEP key] != "") {
+          continue
         }
+        if (is_model_chain_key(target_parent, i)) {
+          print "Dropped model-oriented fallback chain " key > "/dev/stderr"
+          continue
+        }
+        print_node("target", i)
       }
     }
 

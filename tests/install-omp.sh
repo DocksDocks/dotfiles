@@ -63,6 +63,53 @@ web_search_order() {
   ' "$1"
 }
 
+chain_keys() {
+  awk '
+    /^retry:[[:space:]]*$/ {
+      in_retry = 1
+      next
+    }
+    in_retry && /^[^[:space:]]/ {
+      exit
+    }
+    in_retry && /^  fallbackChains:[[:space:]]*$/ {
+      in_chains = 1
+      next
+    }
+    in_chains && /^  [^[:space:]]/ {
+      in_chains = 0
+    }
+    in_chains && /^    [^[:space:]-]/ {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/:.*$/, "", line)
+      print line
+    }
+  ' "$1"
+}
+
+chain_key_present() {
+  local key
+
+  while IFS= read -r key; do
+    if [[ "$key" == "$2" ]]; then
+      return 0
+    fi
+  done < "$1"
+  return 1
+}
+
+top_level_value() {
+  awk -v key="$2" '
+    index($0, key ":") == 1 {
+      line = $0
+      sub(/^[^:]+:[[:space:]]*/, "", line)
+      print line
+      exit
+    }
+  ' "$1"
+}
+
 expected_default="$(mapping_value "$source_config" modelRoles default)"
 expected_order="$test_home/expected-web-search-order"
 web_search_order "$source_config" > "$expected_order"
@@ -107,11 +154,24 @@ if ! awk '
     added_provider = 1
     next
   }
+  /^  fallbackChains:[[:space:]]*$/ {
+    print
+    print "    local/stale-model: "
+    print "      - anthropic/claude-opus-5:high"
+    print "    local/*: "
+    print "      - anthropic/claude-opus-5:high"
+    print "    futurerole: "
+    print "      - anthropic/claude-opus-5:high"
+    added_chains = 1
+    next
+  }
   {
     print
   }
   END {
-    if (!added_effort || !added_custom || !changed_default || !added_provider) {
+    print "local/keep-me: true"
+    if (!added_effort || !added_custom || !changed_default || !added_provider ||
+        !added_chains) {
       exit 1
     }
   }
@@ -141,6 +201,28 @@ actual_order="$test_home/actual-web-search-order"
 web_search_order "$installed_config" > "$actual_order"
 if ! cmp -s "$expected_order" "$actual_order"; then
   fail "providers.webSearchOrder did not revert to the complete repository list"
+fi
+
+actual_chain_keys="$test_home/actual-chain-keys"
+chain_keys "$installed_config" > "$actual_chain_keys"
+
+for stale_key in 'local/stale-model' 'local/*'; do
+  if chain_key_present "$actual_chain_keys" "$stale_key"; then
+    fail "retry.fallbackChains kept the model-oriented key $stale_key"
+  fi
+done
+
+if ! chain_key_present "$actual_chain_keys" futurerole; then
+  fail "retry.fallbackChains dropped the destination-only role key futurerole"
+fi
+
+if ! chain_key_present "$actual_chain_keys" advisor; then
+  fail "retry.fallbackChains lost the repository advisor chain"
+fi
+
+actual_keep="$(top_level_value "$installed_config" 'local/keep-me')"
+if [[ "$actual_keep" != "true" ]]; then
+  fail "the prune reached outside retry.fallbackChains and removed local/keep-me (expected true, got ${actual_keep:-<missing>})"
 fi
 
 printf 'OMP config merge regression passed\n'

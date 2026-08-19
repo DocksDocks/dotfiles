@@ -528,9 +528,10 @@ Sources:
 ## Intent: predictable fallback behavior
 
 Fallback chain entries are full model selectors, parsed exactly like
-`modelRoles` values — an entry without a `:level` suffix carries no level and
-recovers at the model's default rather than at the level that just failed.
-Every entry here is therefore suffixed:
+`modelRoles` values. An entry without a `:level` suffix keeps the level of the
+request that failed, clamped to the effort ceiling of the recovering model.
+Every entry here carries a suffix anyway, so each recovered level is explicit
+rather than inherited. Every key names a role:
 
 ```yaml
 retry:
@@ -558,38 +559,38 @@ retry:
     commit:
       - openai-codex/gpt-5.6-sol:medium
       - anthropic/claude-opus-5:medium
-    anthropic/claude-fable-5:
-      - openai-codex/gpt-5.6-sol:high
-      - anthropic/claude-opus-5:high
 ```
 
-Nearly every key names a role. Resolution picks the chain that owns the failing
-model by specificity: the exact `provider/model-id` key first, then a
-`provider/*` wildcard, then the role chain, then `default`. A model-oriented key
-therefore outranks every role chain. This configuration keeps a role key for
-every model it selects, because one model-oriented key replaces the chain of
-every role that shares that model. The `advisor` and `task` roles share
-GPT-5.6 Sol, so an exact Sol key decided both and left the advisor no reachable
-chain.
+Resolution picks the chain that owns the failing model by specificity: the exact
+`provider/model-id` key first, then a `provider/*` wildcard, then the role
+chain, then `default`. A model-oriented key — any key that contains `/` —
+therefore outranks every role chain. The match compares level-stripped
+selectors, so a key that omits `:level` still captures a request that carries
+one.
 
-The single model-oriented key, `anthropic/claude-fable-5`, is safe for that
-reason: no role selects Claude Fable 5. The key shadows nothing, and it applies
-only when the user selects Fable by hand with `/model`. Fable recovers to Sol at
-`high`, then to Opus 5 at `high`.
+The advisor shows the cost of that order. Advisor recovery names the `advisor`
+role explicitly when it asks for a chain, and OMP still answers with a matching
+model key first. A deployed `openai-codex/gpt-5.6-sol` key therefore replaced
+the `advisor` chain with its own single Luna entry. Luna shares the walled Codex
+plan, so the advisor failed again, latched on `quota_exhausted`, and paused with
+its batch retained until `/advisor` rebuilt it. No notice reports that state
+after the first one, so the advisor looks idle rather than stopped.
 
-`omp usage` reports an additional weekly bucket for that line, `Claude 7 Day
-(Fable)`, so a Fable limit does not imply an Opus 5 limit. The chain still
-leaves the provider at its first entry, which keeps the recovery valid for an
-account-wide Anthropic wall. `AGENTS.md` scopes the version floor to selected
-models, so this key may name a model outside the floor while both of its entries
-satisfy it.
+This configuration declares no model-oriented key, and `install.sh` deletes
+every model-oriented key from the deployed `retry.fallbackChains` while it
+merges. The merge keeps every other key that exists only in the deployed file,
+including a role key this repository does not declare: OMP may add a role, and
+another user of this installer may configure one. A role key never contains
+`/`, so the `/` test separates the two cases exactly. `tests/install-omp.sh`
+pins both halves of that behavior.
 
-Warning: the installer overlays `config.yml` recursively and never deletes a
-destination-only mapping key. Removing a chain key from this repository
-therefore leaves the deployed key in place. Delete such a key by hand from
-`~/.omp/agent/config.yml` after the removal. This change removed five keys that
-way: the exact keys for GPT-5.6 Luna, GPT-5.6 Sol and Claude Opus 5, and the
-obsolete `slow` and `designer` role keys.
+That guarantee has a cost: when this repository stops declaring a *role* chain,
+the deployed copy survives and keeps overriding the inheritance the repository
+intends. Delete such a key by hand from `~/.omp/agent/config.yml`. Commit
+2929df3 dropped the `slow` and `designer` role chains so both roles would
+inherit `default`, and the deployed copies outlived that commit and held both
+roles at a single Codex entry. After any chain-key removal, compare the two
+files and confirm that `retry.fallbackChains` matches.
 
 OMP drops an entry that names the failing role's own model, because that entry
 duplicates the primary. A chain emptied this way leaves the role with no
@@ -640,6 +641,10 @@ answer is no. A depleted plan applies an eligible entry without that question.
 The `fail-closed` policy rejects the request instead of recovering, so this
 configuration does not use it.
 
+The preflight covers the primary session only. OMP installs it as a hook on the
+primary agent, and each advisor runs an agent of its own. An advisor request
+therefore reaches a walled provider and recovers only after that request fails.
+
 The policy preserves the purpose of each role across a provider outage:
 
 - Opus-led work — `default`, `slow`, `plan`, `designer` — recovers to Sol-high,
@@ -684,9 +689,11 @@ explicit OMP fallback chains.
 
 Sources:
 
-- [OMP retry fallback chain parsing](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/retry-fallback-chains.ts)
-- [OMP settings-aware provider streaming](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/settings-stream-fn.ts)
-- [OMP retry policy](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/non-compaction-retry-policy.md)
+- [OMP retry fallback chain resolution](https://github.com/can1357/oh-my-pi/blob/v17.3.8/packages/coding-agent/src/session/retry-fallback-chains.ts)
+- [OMP advisor model recovery](https://github.com/can1357/oh-my-pi/blob/v17.3.8/packages/coding-agent/src/session/session-advisors.ts)
+- [OMP advisor runtime quota latch](https://github.com/can1357/oh-my-pi/blob/v17.3.8/packages/coding-agent/src/advisor/runtime.ts)
+- [OMP settings-aware provider streaming](https://github.com/can1357/oh-my-pi/blob/v17.3.8/packages/coding-agent/src/session/settings-stream-fn.ts)
+- [OMP retry policy](https://github.com/can1357/oh-my-pi/blob/v17.3.8/docs/non-compaction-retry-policy.md)
 
 ## Intent: no explicit service tier
 
