@@ -227,7 +227,7 @@ reasoning that model spends.
 
 | Roles | Selector | Intent |
 | --- | --- | --- |
-| `default`, `slow`, `plan` | `anthropic/claude-opus-5:max` | Primary session, difficult investigations, and planning |
+| `default`, `slow`, `plan` | `anthropic/claude-opus-5:medium` | Primary session, difficult investigations, and planning |
 | `designer` | `anthropic/claude-opus-5:high` | Design specialization |
 | `advisor` | `openai-codex/gpt-5.6-sol:high` | Advisor channel, on the second provider |
 | `vision` | `openai-codex/gpt-5.6-sol:low` | Image inspection; dormant while the active model accepts images |
@@ -239,24 +239,22 @@ The general task worker resolves through `task`. The bundled reviewer resolves
 through `slow` by default. This configuration overrides that agent, and three
 other review agents, in `## Intent: aggressive but bounded delegation`.
 
-`default`, `slow`, and `plan` sit at the top of the ladder. For `slow` and
-`plan`, the output is consumed as a decision rather than as a draft: a review
-or a plan is rarely re-litigated, so the extra latency buys something the next
-turn cannot recover. `default` joins them by explicit choice: the primary
-session takes the maximum reasoning depth on every turn, and pays 58.23s to the
-first answer token and $2.34 per task for it. Measured against `medium`, `max`
-scores 63.1 against 58.6, at roughly three times the cost per task.
+`default`, `slow`, and `plan` use `medium`. Their output is often consumed as
+a decision rather than as a draft, but the `max` tier is currently unreliable
+in this setup. `medium` keeps Opus 5 selected while avoiding that failure mode.
+In the recorded comparison, `medium` scores 58.6 against `max` at 63.1, while
+costing $0.72 instead of $2.34 per task.
 
 `advisor` runs on the other provider at `high`. The advisor channel exists to
 review the primary session, so a second opinion from a different model family
-is worth more than one more Opus 5 instance. Sol-high scores 57.3 and answers
-in 15.73s at $0.55 per task, which keeps the review channel cheaper and faster
-than the session it reviews.
+is worth more than one more Opus 5 instance. Sol-high scores 57.3 and costs
+$0.55 per task, which keeps the review channel cheaper than the session it
+reviews.
 
-`designer` runs at `high`. Design output is consumed as a decision, like `slow`
-and `plan`, so it sits above the `medium` tier it used to occupy: 61.5 index
-points against 58.6, for $1.23 per task against $0.72. It stays below `max`
-because a design answer is read and revised before anything acts on it.
+`designer` runs at `high`, the top tier this configuration selects. Design
+output is consumed as a decision, so it sits above the `medium` tier it used to
+occupy: 61.5 index points against 58.6, for $1.23 per task against $0.72. The
+role carries this cost on a narrow slice of the work, so the tier stays.
 
 `vision` is dormant under this configuration and is set for the case where it
 is not. It backs the `inspect_image` tool, which delegates an image to a
@@ -413,7 +411,7 @@ Three consequences drive this configuration.
 the global setting covers only an unsuffixed selector — a manual `/model`
 switch, say. That path is `findInitialModel`, which serves the main session
 alone; the subagent resolver never reads the setting at all. Every role
-except `smol` now carries an explicit suffix at `medium`, `high`, or `max`.
+except `smol` now carries an explicit suffix at `medium` or `high`.
 Every agent backed by `smol` declares its own thinking level.
 `defaultThinkingLevel: high` is still present, and it remains decorative.
 
@@ -649,10 +647,10 @@ The policy preserves the purpose of each role across a provider outage:
 
 - Opus-led work — `default`, `slow`, `plan`, `designer` — recovers to Sol-high,
   which scores 57.3. For `designer`, that is a fall from Opus 5-high at 61.5.
-  For the roles at Opus 5-max, it is a fall from 63.1, so the loss is larger.
-  The configuration accepts both losses because the alternative is no answer at
-  all, and the recovered work still runs on a top-tier model rather than a
-  cheaper one.
+  For the three roles at Opus 5-medium, it is a fall from 58.6, so the loss is
+  smaller. The configuration accepts both losses because the alternative is no
+  answer at all, and the recovered work still runs on a top-tier model rather
+  than a cheaper one.
 - `advisor` recovers to Opus 5-medium, which scores 58.6 against Sol-high at
   57.3. The tier is chosen for speed: Opus 5-medium returns the first answer
   token in 8.59s against 12.00s at `high`. The advisor regains a cross-family
@@ -660,8 +658,8 @@ The policy preserves the purpose of each role across a provider outage:
 - `task` recovers to Opus 5-medium as well, so delegated work now reaches
   Opus 5. This reverses the earlier decision to keep subagents off Opus 5. That
   decision left the Sol chain no escape from an account-wide Codex limit, and a
-  subagent then failed outright. `modelRoles` still reserves `max` for the
-  orchestrating session, so a subagent recovers at 58.6 rather than 63.1.
+  subagent then failed outright. `modelRoles` assigns `medium` to the
+  orchestrating session too, so this recovery matches its effort tier.
 - `vision` recovers to Opus 5-low, which scores 79.8 on the image evaluation
   against 81.0 for Sol-low. The level stays at `low`, because the role reads
   images rather than reasons at length.
@@ -766,7 +764,7 @@ Task isolation remains disabled. Non-isolated agents can stay live and receive
 follow-up messages, while isolated agents are parked after their workspace is
 merged and cannot be resumed.
 
-`task.agentModelOverrides` keeps Opus 5 max on the orchestrating session. Two
+`task.agentModelOverrides` keeps Opus 5 medium on the orchestrating session. Two
 routes put subagents on it otherwise. The bundled `reviewer` declares `@slow` in
 its frontmatter. The bundled `security-reviewer` and the `plan-lifecycle` plugin
 agents declare no model, so they inherit the parent's active model. An override

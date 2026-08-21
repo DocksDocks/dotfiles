@@ -41,13 +41,13 @@ modelRoles:
   smol: openai-codex/gpt-5.6-luna
   advisor: openai-codex/gpt-5.6-sol:high
   designer: anthropic/claude-opus-5:high
-  plan: anthropic/claude-opus-5:max
+  plan: anthropic/claude-opus-5:medium
   commit: openai-codex/gpt-5.6-luna:high
   task: openai-codex/gpt-5.6-sol:high
   vision: openai-codex/gpt-5.6-sol:low
   tiny: openai-codex/gpt-5.6-luna:high
-  default: anthropic/claude-opus-5:max
-  slow: anthropic/claude-opus-5:max
+  default: anthropic/claude-opus-5:medium
+  slow: anthropic/claude-opus-5:medium
 display: 
   shimmer: classic
   showTokenUsage: true
