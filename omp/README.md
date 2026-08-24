@@ -230,7 +230,7 @@ reasoning that model spends.
 | `default`, `slow`, `plan` | `anthropic/claude-opus-5:medium` | Primary session, difficult investigations, and planning |
 | `designer` | `anthropic/claude-opus-5:high` | Design specialization |
 | `advisor` | `openai-codex/gpt-5.6-sol:high` | Advisor channel, on the second provider |
-| `vision` | `openai-codex/gpt-5.6-sol:low` | Image inspection; dormant while the active model accepts images |
+| `vision` | `anthropic/claude-opus-5:low` | Image inspection; dormant while the active model accepts images |
 | `task` | `openai-codex/gpt-5.6-sol:high` | Delegated implementation |
 | `commit`, `tiny` | `openai-codex/gpt-5.6-luna:high` | Commit helpers, titles, memory utilities |
 | `smol` | `openai-codex/gpt-5.6-luna` | Backs the bundled research agents; level left to each agent |
@@ -256,38 +256,37 @@ output is consumed as a decision, so it sits above the `medium` tier it used to
 occupy: 61.5 index points against 58.6, for $1.23 per task against $0.72. The
 role carries this cost on a narrow slice of the work, so the tier stays.
 
-`vision` is dormant under this configuration and is set for the case where it
-is not. It backs the `inspect_image` tool, which delegates an image to a
-vision-capable model — and `inspect_image.mode` defaults to `auto`, registering
-the tool only when the active model lacks native image input. Claude Opus 5
-accepts image input directly, so with `default` on Opus the tool is never
-registered and the role is never consulted.
+`vision` stays dormant under this configuration. It backs `inspect_image`,
+which sends an image to a vision-capable model. `inspect_image.mode` defaults
+to `auto`. OMP registers the tool only when the active model lacks native image
+input. Claude Opus 5 accepts images directly. Therefore, the `default` model
+does not register the tool or consult the role.
 
-It becomes live when that stops holding: an active model without image input, a
-session-scoped `/vision` override, or `inspect_image.mode: on`. At that point
-the tool resolves `@vision` first, falling back to `@default`. The role takes
-Sol at `low`, because reading an image is a perception task and the reasoning
-ladder is the wrong axis for it.
+The role becomes active with an image-blind model, a session `/vision`
+override, or `inspect_image.mode: on`. The tool resolves `@vision`, then
+`@default`.
 
-Artificial Analysis measures image input separately from the Intelligence Index,
-with MMMU-Pro. That score barely responds to reasoning effort. Across the Sol
-tiers it moves from 81.0 at `low` to 83.4 at `max`, while time to the first
-answer token moves from 3.28s to 153.87s. The ladder buys latency here, not
-perception.
+`vision` now uses Opus 5 at `low`. Previously, `vision` and `task` both named
+Sol with explicit levels. The role scan visits `vision` first, so a plain
+`/switch` to Sol selected `low`. Moving `vision` to Opus removes that collision.
+A plain switch to Sol now receives the `task` role's `high` level.
 
-Sol at `low` is not the strongest image model the floor allows. Opus 5 at `max`
-is, at 84.7. The role selects for cost and latency instead, because
-`inspect_image` runs in the foreground of a call the user is waiting on.
+Keep `vision` at `low`. Image reading tests perception, not prolonged
+reasoning. Artificial Analysis measures image input separately from the
+Intelligence Index with MMMU-Pro. Across Opus 5 tiers, MMMU-Pro rises from 79.8
+at `low` to 84.7 at `max`. Time to the first answer token rises from 3.08s to
+58.23s. Use `low` to limit foreground latency.
 
-Sol at `low` scores 81.0 and answers in 3.28s, the highest score of any tier
-under four seconds. Opus 5 at `low` is the nearest alternative and scores 1.2
-points lower. The cost column separates them further, $0.23 against $0.43, but
-that column prices one Intelligence Index task, not one image call. Treat it as
-a relative price proxy between models, not as the cost of `inspect_image`.
+The model move has a measured cost. MMMU-Pro falls from 81.0 for Sol-low to
+79.8 for Opus 5-low. Cost per task rises from $0.23 to $0.43. Time to the first
+answer token improves from 3.28s to 3.08s.
 
-MMMU-Pro is the image measurement in this table. It is multiple-choice reasoning
-over images, not a test of screenshot description or of text extraction. Its
-transfer to `inspect_image` work is therefore an inference, not a measurement.
+The cost column prices one Intelligence Index task, not one image call. Use it
+as a relative price proxy between models, not as the cost of `inspect_image`.
+
+MMMU-Pro measures multiple-choice reasoning over images. It does not test
+screenshot description or text extraction. Its transfer to `inspect_image`
+work is an inference, not a measurement.
 
 Sources:
 
