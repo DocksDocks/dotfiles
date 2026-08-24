@@ -232,6 +232,7 @@ reasoning that model spends.
 | `advisor` | `openai-codex/gpt-5.6-sol:high` | Advisor channel, on the second provider |
 | `vision` | `anthropic/claude-opus-5:low` | Image inspection; dormant while the active model accepts images |
 | `task` | `openai-codex/gpt-5.6-sol:high` | Delegated implementation |
+| `switch_fable` | `anthropic/claude-fable-5:high` | Hidden level pin for a plain mid-session switch |
 | `commit`, `tiny` | `openai-codex/gpt-5.6-luna:high` | Commit helpers, titles, memory utilities |
 | `smol` | `openai-codex/gpt-5.6-luna` | Backs the bundled research agents; level left to each agent |
 
@@ -299,11 +300,16 @@ Sources:
 Model choice is bounded before any other consideration:
 
 - OpenAI GPT: GPT-5.6 or later.
-- Anthropic Claude: Claude Opus 5 or later.
+- Anthropic Claude: any Claude 5 model, for example Claude Opus 5 or Claude
+  Fable 5, or later.
 
 The floor sets the model version, not the effort tier. Every tier of an allowed
-model stays available, which is why the reference table below carries all five
-tiers of only four models.
+model stays available. The reference table below therefore carries all five
+tiers of four models, and one measured configuration of Claude Fable 5.
+
+The Anthropic line names the Claude 5 generation rather than Opus alone,
+because this configuration selects Claude Fable 5 for a deliberate mid-session
+switch. The floor still excludes every Claude 4 release.
 
 A floor removes a recurring decision. Older releases keep reappearing in
 comparisons because they cost less per token, and each appearance costs a fresh
@@ -324,11 +330,14 @@ Source:
 
 ## Reference: measured model tiers
 
-This table carries every effort tier of every model this configuration uses,
-not only the tiers currently selected. A change of effort therefore needs no
-new measurement round. The table also carries GPT-5.6 Terra, which this
-configuration does not use. Terra is the third Codex model, so the table is
-where that choice stays checkable without a new measurement round.
+This table carries every effort tier of each measured model this configuration
+uses. Claude Fable 5 appears with one row, because Artificial Analysis measures
+one Fable configuration only. A change among measured tiers therefore needs no
+new measurement round.
+
+The table also carries GPT-5.6 Terra, which this configuration does not use.
+Terra is the third Codex model. The table keeps that choice checkable without a
+new measurement round.
 
 Artificial Analysis reports the following, retrieved 2026-08-12 against
 Intelligence Index v4.1.1. Every model listed has a 1,000,000-token context
@@ -345,6 +354,7 @@ contribute to the index column.
 | Opus 5 high | 61.5 | 82.4 | 51.9 tok/s | 12.00s | $1.23 | $5.00 / $25.00 |
 | Opus 5 xhigh | 62.5 | 84.0 | 52.2 tok/s | 25.09s | $1.80 | $5.00 / $25.00 |
 | Opus 5 max | 63.1 | 84.7 | 54.1 tok/s | 58.23s | $2.34 | $5.00 / $25.00 |
+| Fable 5 max, Opus 4.8 fallback | 62.1 | not published | 70.7 tok/s | 132.67s | not published | $10.00 / $50.00 |
 | Sol low | 50.7 | 81.0 | 51.6 tok/s | 3.28s | $0.23 | $5.00 / $30.00 |
 | Sol medium | 55.6 | 81.4 | 58.3 tok/s | 5.75s | $0.37 | $5.00 / $30.00 |
 | Sol high | 57.3 | 81.8 | 56.7 tok/s | 15.73s | $0.55 | $5.00 / $30.00 |
@@ -360,6 +370,57 @@ contribute to the index column.
 | Luna high | 47.0 | 77.6 | 164.8 tok/s | 14.68s | $0.022 | $0.20 / $1.20 |
 | Luna xhigh | 50.1 | 78.6 | 157.7 tok/s | 50.93s | $0.032 | $0.20 / $1.20 |
 | Luna max | 52.3 | 78.6 | 162.3 tok/s | 136.64s | $0.047 | $0.20 / $1.20 |
+
+The Fable 5 row needs four qualifications. Read it as one measured
+configuration, not as a tier ladder.
+
+First, the row was retrieved on 2026-08-24, twelve days after the other rows.
+Artificial Analysis refreshes provider measurements, so the Fable figures and
+the older rows are not one simultaneous snapshot.
+
+Second, Artificial Analysis measures Fable 5 only as "Adaptive Reasoning, Max
+Effort, Opus 4.8 Fallback". OMP exposes five Fable effort levels, and
+`switch_fable` selects `high`. No published measurement covers that level. The
+Anthropic provider page confirms this is a Fable-specific gap, not a site
+policy. That page lists Claude Opus 5 and Claude Sonnet 5 once per effort tier,
+and lists Fable once in total.
+
+Third, the measured configuration is not pure Fable output. Anthropic routes
+safety-flagged messages to Claude Opus 4.8, and Artificial Analysis recorded
+that fallback in about 8 percent of Intelligence Index tasks, and in 9 percent
+of Humanity's Last Exam tasks. The index value therefore blends two models.
+
+Fourth, two cells have no published value for this configuration. Artificial
+Analysis publishes no Fable MMMU-Pro score and no Fable cost per task. A
+search result that reports 85 percent for Fable names the Claude Opus 5
+max-effort row, so this file does not carry it. Price comes from the OMP model
+catalog, which matches Anthropic's published $10.00 and $50.00 per 1M tokens,
+with cache write at $12.50 and cache read at $1.00.
+
+The Fable launch analysis reported 64.9 on an earlier Intelligence Index
+version. Index v4.1.1 reports 62. Compare Fable against the rows above only
+within v4.1.1.
+
+Anthropic describes Fable effort levels without publishing numbers per level.
+The launch post reports that Fable leads Cognition's FrontierCode evaluation
+even at medium effort, and quotes a customer who measures Fable above Opus 4.8
+on a spreadsheet suite at every effort level. Neither statement carries a value
+this table can hold. Treat the effort ladder as undocumented until a measured
+source publishes one.
+
+Benchgen reports 84.2 percent MMMU-Pro for Fable 5. This file does not carry
+that number, for two reasons of method. First, the column above holds Artificial
+Analysis measurements, and Benchgen attributes every Fable score to its own
+evaluation, with no effort level, no harness description, and no statement about
+whether the Opus 4.8 fallback was active. A score measured under unstated
+conditions does not belong in a column measured under stated ones.
+
+Second, the page reports its own primary source incorrectly. It attributes the
+June 2026 suspension to a United States export control directive and cites
+Anthropic's statement, which gives no such cause. It also records the context
+window as undisclosed, where Anthropic publishes 1,000,000 tokens, and it
+recommends Claude Opus 4 and Opus 4.6 as current alternatives. Those errors are
+reason to distrust the numbers, not merely the metadata.
 
 Terra is the price-and-speed member of the Codex family: $2.00 / $12.00 per 1M
 tokens, and 102 to 123 output tokens per second against 52 to 63 for Sol. It
@@ -381,6 +442,13 @@ an individual coding task.
 Sources:
 
 - [Claude Opus 5](https://artificialanalysis.ai/models/claude-opus-5)
+- [Claude Fable 5](https://artificialanalysis.ai/models/claude-fable-5)
+- [Claude Fable 5 and Mythos 5 intelligence analysis](https://artificialanalysis.ai/articles/claude-fable-5-mythos-intelligence-index)
+- [Claude Opus 5 medium against Claude Fable 5](https://artificialanalysis.ai/models/comparisons/claude-opus-5-medium-vs-claude-fable-5)
+- [Anthropic model configurations measured by Artificial Analysis](https://artificialanalysis.ai/providers/anthropic)
+- [Anthropic launch post for Claude Fable 5 and Mythos 5](https://www.anthropic.com/news/claude-fable-5-mythos-5)
+- [Benchgen page for Claude Fable 5, not used for any value](https://benchgen.com/models/anthropic/claude-fable-5)
+- [Anthropic statement on suspended Fable and Mythos access](https://www.anthropic.com/news/fable-mythos-access)
 - [GPT-5.6 Sol](https://artificialanalysis.ai/models/gpt-5-6-sol)
 - [GPT-5.6 Terra](https://artificialanalysis.ai/models/gpt-5-6-terra)
 - [GPT-5.6 Luna](https://artificialanalysis.ai/models/gpt-5-6-luna)
@@ -436,6 +504,55 @@ model here exposes, `med` resolves to `high` and `hi` to `max`. Reasoning depth
 is therefore fixed before a spawn starts — by the role's suffix, or by the
 agent's own frontmatter where the role leaves the level open. Both are
 properties of the work being delegated; neither is the caller's per-call guess.
+
+### Plain `/switch` levels follow role scan order
+
+Use `switch_fable` to pin the level of a plain mid-session switch to Claude
+Fable 5. The benchmark table carries one Fable row, measured at max effort with
+the Opus 4.8 fallback, so it does not measure the `high` level this role
+selects.
+
+```yaml
+modelRoles:
+  switch_fable: anthropic/claude-fable-5:high
+modelTags:
+  switch_fable:
+    name: Fable switch default
+    hidden: true
+```
+
+`/switch` opens the compact model picker. After model selection, the selector
+controller calls `resolveTemporaryModelThinkingLevel`.
+
+That function reads role IDs from `getKnownRoleIds`. It scans these built-in
+roles first: `default`, `smol`, `slow`, `vision`, `plan`, `designer`, `commit`,
+`tiny`, `task`, and `advisor`.
+
+It then adds roles found only in `cycleOrder`, `modelRoles`, and `modelTags`,
+in that order. The resolver skips a role without an explicit `:level` suffix.
+It requires an exact provider and model match. The first matching role sets the
+level.
+
+Two explicit roles for one model therefore give control to the earlier role.
+Select a role alias, such as `@task`, to use that role and its level instead.
+
+A model that matches no role does not simply keep the current level.
+`setModelTemporary` applies the role level when the scan returns one. Without a
+role level, it prefers the model's catalog `defaultLevel`, and only then keeps
+the current session level or `auto`. No Anthropic catalog entry defines
+`defaultLevel`, and no Anthropic code path assigns one, so a plain switch to
+Fable kept the previous model's level. `switch_fable` supplies the role level
+and ends that dependency.
+
+The `modelTags.switch_fable` entry sets `hidden: true`. This setting hides the
+role from the selector interface only. `getKnownRoleIds` still adds roles from
+`modelTags`, so the hidden role still controls the level.
+
+`cycleOrder` stays unset and keeps its default. The custom role therefore does
+not join role cycling.
+
+Keep the role order stable. A future earlier role that names Claude Fable 5 or
+Codex Sol with an explicit level silently overrides `switch_fable` or `task`.
 
 ### The adaptive tiers are genuinely different on these models
 
@@ -579,46 +696,21 @@ another user of this installer may configure one. A role key never contains
 `/`, so the `/` test separates the two cases exactly. `tests/install-omp.sh`
 pins both halves of that behavior.
 
-That guarantee has a cost: when this repository stops declaring a *role* chain,
-the deployed copy survives and keeps overriding the inheritance the repository
-intends. Delete such a key by hand from `~/.omp/agent/config.yml`. Commit
-2929df3 dropped the `slow` and `designer` role chains so both roles would
-inherit `default`, and the deployed copies outlived that commit and held both
-roles at a single Codex entry. After any chain-key removal, compare the two
-files and confirm that `retry.fallbackChains` matches.
+That guarantee has a cost. A deployed role chain can override the repository's
+intended inheritance after its key leaves this file. The
+[fallback resolver](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/retry-fallback-chains.ts#L123-L134)
+copies `default` to every `modelRoles` role without its own chain. Here,
+`slow`, `plan`, `designer`, and `switch_fable` recover into Codex Sol at `high`.
 
-OMP drops an entry that names the failing role's own model, because that entry
-duplicates the primary. A chain emptied this way leaves the role with no
-candidate and reports no warning. Each chain above therefore omits its own
-model. `smol`, `tiny` and `commit` declare explicit chains for that reason: the
-`default` chain ends on Luna at `max`, which is their own model.
-
-`plan`, `slow` and `designer` declare no chain, so OMP copies `default` onto
-them. That result is correct, because all three run Claude Opus 5, and the
-Opus 5 entry drops out for them as a duplicate. Their recovery is Sol-high,
-then Luna-max. The `default` chain also covers a model picked by hand with
-`/model`, which is why it carries an Anthropic entry: a hand-picked Codex model
-needs an escape from the Codex provider.
-
-OMP pins the chain at the first switch and walks it to the end. A chain never
-continues into another model's chain, so each chain above is complete on its
-own.
+Commit 2929df3 removed the `slow` and `designer` chains, but their deployed
+copies survived and overrode inherited `default`. Delete stale role keys by
+hand from `~/.omp/agent/config.yml`. After any chain-key removal, compare the
+two files and confirm that `retry.fallbackChains` matches.
 
 Two quota domains govern the role chains. Every non-Spark Codex model shares
 one plan pool, and the Anthropic 5-hour and 7-day windows are account-wide. An
 entry survives a plan wall only when it crosses that boundary. Every chain
 above crosses it.
-
-The two directions order their entries by the failure that is more likely for
-the starting family:
-
-- Opus-backed roles place Sol first, because a single model outage is more
-  common than a provider outage.
-- Sol-backed roles — `advisor`, `task` and `vision` — place the Anthropic entry
-  first. A Codex plan wall makes a Codex-first entry a certain failure that
-  only spends retries and backoff.
-- Luna-backed roles place Sol first and Opus 5 second, which keeps a mechanical
-  role inside the cheaper provider for a single model outage.
 
 A `provider/*` entry stays unusable in this installation. Such an entry keeps
 the failing model id and swaps the provider, and OMP skips an id that the
@@ -1129,6 +1221,7 @@ Inspect the effective settings after installation:
 
 ```bash
 omp config get modelRoles --json
+omp config get modelTags --json
 omp config get defaultThinkingLevel --json
 omp config get retry.fallbackChains --json
 omp config get task.enableEffort --json

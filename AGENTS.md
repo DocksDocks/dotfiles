@@ -6,7 +6,8 @@
 entry. Only these model versions may appear there:
 
 - OpenAI GPT: GPT-5.6 or later.
-- Anthropic Claude: Claude Opus 5 or later.
+- Anthropic Claude: any Claude 5 model, for example Claude Opus 5 or Claude
+  Fable 5, or later.
 
 The floor governs the models this configuration selects. These are the role
 assignments in `modelRoles` and the entries of every fallback chain. A fallback
