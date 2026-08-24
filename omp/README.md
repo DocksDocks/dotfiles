@@ -410,7 +410,7 @@ Three consequences drive this configuration.
 the global setting covers only an unsuffixed selector — a manual `/model`
 switch, say. That path is `findInitialModel`, which serves the main session
 alone; the subagent resolver never reads the setting at all. Every role
-except `smol` now carries an explicit suffix at `medium` or `high`.
+except `smol` now carries an explicit suffix at `low`, `medium`, or `high`.
 Every agent backed by `smol` declares its own thinking level.
 `defaultThinkingLevel: high` is still present, and it remains decorative.
 
@@ -472,6 +472,9 @@ Sources:
 - [OMP thinking levels and task effort](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/thinking.ts)
 - [OMP subagent model and effort resolution](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/task/executor.ts)
 - [OMP startup model and level resolution](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/config/model-resolver.ts)
+- [OMP temporary model thinking resolution](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/model-controls.ts)
+- [OMP compact model selector](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/modes/controllers/selector-controller.ts)
+- [OMP role discovery order](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/config/model-roles.ts)
 - [OMP thinking control mode and effort ladders](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/catalog/src/model-thinking.ts)
 - [OMP provider request construction](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/ai/src/stream.ts)
 - [OMP settings definitions](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/config/settings-schema.ts)
@@ -527,8 +530,11 @@ Sources:
 Fallback chain entries are full model selectors, parsed exactly like
 `modelRoles` values. An entry without a `:level` suffix keeps the level of the
 request that failed, clamped to the effort ceiling of the recovering model.
-Every entry here carries a suffix anyway, so each recovered level is explicit
-rather than inherited. Every key names a role:
+Every configured entry carries a suffix, so each recovered level is explicit
+rather than inherited. Every chain holds one cross-provider entry. The root
+`AGENTS.md` rule requires this shape. A plan window suppresses the whole account
+window, but a cooldown suppresses only one model identifier. A second entry
+from the failing provider can look available but cannot succeed:
 
 ```yaml
 retry:
@@ -536,26 +542,18 @@ retry:
   fallbackChains:
     default:
       - openai-codex/gpt-5.6-sol:high
-      - anthropic/claude-opus-5:medium
-      - openai-codex/gpt-5.6-luna:max
     advisor:
       - anthropic/claude-opus-5:medium
-      - openai-codex/gpt-5.6-luna:high
     task:
       - anthropic/claude-opus-5:medium
-      - openai-codex/gpt-5.6-luna:max
     vision:
-      - anthropic/claude-opus-5:low
-      - openai-codex/gpt-5.6-luna:low
+      - openai-codex/gpt-5.6-sol:low
     smol:
-      - openai-codex/gpt-5.6-sol:medium
-      - anthropic/claude-opus-5:medium
+      - anthropic/claude-opus-5:low
     tiny:
-      - openai-codex/gpt-5.6-sol:medium
-      - anthropic/claude-opus-5:medium
+      - anthropic/claude-opus-5:low
     commit:
-      - openai-codex/gpt-5.6-sol:medium
-      - anthropic/claude-opus-5:medium
+      - anthropic/claude-opus-5:low
 ```
 
 Resolution picks the chain that owns the failing model by specificity: the exact
@@ -650,24 +648,26 @@ The policy preserves the purpose of each role across a provider outage:
   smaller. The configuration accepts both losses because the alternative is no
   answer at all, and the recovered work still runs on a top-tier model rather
   than a cheaper one.
-- `advisor` recovers to Opus 5-medium, which scores 58.6 against Sol-high at
-  57.3. The tier is chosen for speed: Opus 5-medium returns the first answer
-  token in 8.59s against 12.00s at `high`. The advisor regains a cross-family
-  recovery, which the previous Luna-max entry did not provide.
-- `task` recovers to Opus 5-medium as well, so delegated work now reaches
-  Opus 5. This reverses the earlier decision to keep subagents off Opus 5. That
-  decision left the Sol chain no escape from an account-wide Codex limit, and a
-  subagent then failed outright. `modelRoles` assigns `medium` to the
-  orchestrating session too, so this recovery matches its effort tier.
-- `vision` recovers to Opus 5-low, which scores 79.8 on the image evaluation
-  against 81.0 for Sol-low. The level stays at `low`, because the role reads
-  images rather than reasons at length.
-- Luna failures recover to Sol-medium first. Sol-medium scores 55.6 against
-  Luna-high's 47.0 and reaches the first answer token in 5.75s against 14.68s
-  for Luna-high. A mechanical role therefore degrades into a quicker, stronger,
-  costlier model instead of a slower one. Sol costs twenty-five times the Luna
-  token price: $5.00 against $0.20 per 1M input tokens. That price is
-  acceptable on the retry path and would not be acceptable in steady state.
+- `advisor` uses one Opus 5-medium recovery entry. It scores 58.6 against
+  Sol-high at 57.3 and starts in 8.59s against 15.73s. The retry costs $0.72
+  per task against $0.55.
+- `task` also uses one Opus 5-medium recovery entry. It scores 58.6 against
+  Sol-high at 57.3 and starts in 8.59s against 15.73s. The retry costs $0.72
+  per task against $0.55.
+- `vision` now starts on Anthropic, so repository policy requires another
+  provider in its chain. The Sol-low entry mirrors the `default` recovery from
+  Anthropic into Codex. MMMU-Pro rises from 79.8 for Opus 5-low to 81.0 for
+  Sol-low. Keep the level at `low`, because the role reads images.
+- Luna-backed roles — `smol`, `tiny`, and `commit` — use one Opus 5-low
+  recovery entry. Opus 5-low has an index of 52.5 against 47.0 for Luna-high.
+  It starts in 3.08s against 14.68s. Recovery costs $0.43 per task against
+  $0.022, about twenty times the Luna price on the retry path.
+
+No chain entry names Claude Fable 5, so OMP never switches into Fable
+automatically. A switch into Fable that carries earlier reasoning in the kept
+history can produce an Anthropic `reasoning_extraction` refusal, recorded in
+this repository's own logs and in upstream issue 7241. A switch into Fable
+therefore stays a deliberate user action.
 
 See `## Reference: measured model tiers` for the full set of measured
 figures.
@@ -682,15 +682,14 @@ providers:
 
 This prevents a classifier-blocked Anthropic request from being silently
 retried on a different Anthropic model. Model changes remain controlled by the
-explicit OMP fallback chains.
+configured OMP fallback chains.
 
 Sources:
 
-- [OMP retry fallback chain resolution](https://github.com/can1357/oh-my-pi/blob/v17.3.8/packages/coding-agent/src/session/retry-fallback-chains.ts)
-- [OMP advisor model recovery](https://github.com/can1357/oh-my-pi/blob/v17.3.8/packages/coding-agent/src/session/session-advisors.ts)
-- [OMP advisor runtime quota latch](https://github.com/can1357/oh-my-pi/blob/v17.3.8/packages/coding-agent/src/advisor/runtime.ts)
-- [OMP settings-aware provider streaming](https://github.com/can1357/oh-my-pi/blob/v17.3.8/packages/coding-agent/src/session/settings-stream-fn.ts)
-- [OMP retry policy](https://github.com/can1357/oh-my-pi/blob/v17.3.8/docs/non-compaction-retry-policy.md)
+- [OMP advisor model recovery](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/session-advisors.ts)
+- [OMP advisor runtime quota latch](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/advisor/runtime.ts)
+- [OMP settings-aware provider streaming](https://github.com/can1357/oh-my-pi/blob/v17.2.1/packages/coding-agent/src/session/settings-stream-fn.ts)
+- [OMP retry policy](https://github.com/can1357/oh-my-pi/blob/v17.2.1/docs/non-compaction-retry-policy.md)
 
 ## Intent: no explicit service tier
 
