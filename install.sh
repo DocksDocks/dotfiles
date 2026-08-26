@@ -3,10 +3,6 @@
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# A floor, not a pin: the minimum version this setup requires. Newer published
-# releases install automatically, and the floor only stops the installer from
-# dropping below the oldest version verified against this configuration.
-readonly remote_pi_floor="0.7.0"
 
 backup_if_changed() {
   local source_file="$1"
@@ -296,154 +292,6 @@ intercom_dir() {
   printf '%s/intercom\n' "${agent_dir%/}"
 }
 
-# Remote-pi hardcodes this path under the home directory.
-# PI_CODING_AGENT_DIR applies only to pi-intercom.
-remote_dir() {
-  printf '%s/.pi/remote\n' "$HOME"
-}
-
-# The macOS application bundle frequently leaves the CLI outside PATH.
-tailscale_cmd() {
-  if command -v tailscale >/dev/null 2>&1; then
-    printf 'tailscale\n'
-    return
-  fi
-  if [[ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]]; then
-    printf '/Applications/Tailscale.app/Contents/MacOS/Tailscale\n'
-    return
-  fi
-
-  return 1
-}
-
-# The official script detects the operating system and selects the correct
-# package manager. On macOS it opens the Mac App Store page.
-tailscale_install_hint() {
-  printf 'Tailscale is not installed, so the installer cannot find a relay\n' >&2
-
-  case "$(uname -s 2>/dev/null)" in
-    Darwin)
-      printf 'Install it from the Mac App Store, or run one of these commands:\n' >&2
-      printf '  brew install --cask tailscale\n' >&2
-      printf '  curl -fsSL https://tailscale.com/install.sh | sh\n' >&2
-      ;;
-    Linux)
-      printf 'Install it with this command:\n' >&2
-      printf '  curl -fsSL https://tailscale.com/install.sh | sh\n' >&2
-      ;;
-    *)
-      printf 'Install it from https://tailscale.com/download\n' >&2
-      ;;
-  esac
-}
-
-relay_health_ok() {
-  local base_url="$1"
-  local health
-
-  # A missing probe tool is a prerequisite fault, not an absent relay.
-  # The caller separates the two conditions, so never mask this case here.
-  if ! command -v curl >/dev/null 2>&1; then
-    return 2
-  fi
-  health="$(curl -fsS -m 2 "${base_url%/}/health" 2>/dev/null)" || return 1
-  [[ "$health" == "OK" ]]
-}
-
-detect_relay_url() {
-  local tailscale
-  local status_output
-  local suffix
-  local line
-  local address
-  local short_name
-  local remainder
-  local relay_name
-  local relay_url
-  local probe_status
-
-  if [[ -n "${REMOTE_PI_RELAY:-}" ]]; then
-    printf 'Detected relay at %s\n' "$REMOTE_PI_RELAY" >&2
-    printf '%s\n' "$REMOTE_PI_RELAY"
-    return
-  fi
-
-  relay_url="http://127.0.0.1:3000"
-  probe_status=0
-  relay_health_ok "$relay_url" || probe_status=$?
-  if [[ "$probe_status" -eq 0 ]]; then
-    printf 'Detected relay at %s\n' "$relay_url" >&2
-    printf '%s\n' "$relay_url"
-    return
-  fi
-  if [[ "$probe_status" -eq 2 ]]; then
-    printf 'Cannot probe for a relay: curl is not on PATH\n' >&2
-    return 2
-  fi
-
-  # Status 3 marks an absent Tailscale CLI. The caller warns and continues.
-  if ! tailscale="$(tailscale_cmd)"; then
-    return 3
-  fi
-  # The macOS bundle executable chooses between the GUI and the CLI.
-  # TAILSCALE_BE_CLI forces CLI mode and prevents a GUI launch. Linux ignores it.
-  status_output="$(TAILSCALE_BE_CLI=1 "$tailscale" status 2>/dev/null)" || return 1
-  suffix="$(
-    TAILSCALE_BE_CLI=1 "$tailscale" status --json 2>/dev/null |
-      grep -m1 '"MagicDNSSuffix"' |
-      sed -e 's/.*: *"//' -e 's/".*//'
-  )" || true
-
-  while IFS= read -r line; do
-    case "$line" in
-      *offline*) continue ;;
-    esac
-
-    address=
-    short_name=
-    read -r address short_name remainder <<< "$line"
-    if [[ -z "$address" || -z "$short_name" ]]; then
-      continue
-    fi
-
-    if relay_health_ok "http://$address:3000"; then
-      if [[ -n "$suffix" ]]; then
-        relay_name="$(printf '%s' "$short_name" | tr '[:upper:]' '[:lower:]')"
-        relay_url="http://$relay_name.$suffix:3000"
-      else
-        relay_url="http://$address:3000"
-      fi
-      printf 'Detected relay at %s\n' "$relay_url" >&2
-      printf '%s\n' "$relay_url"
-      return
-    fi
-  done <<< "$status_output"
-
-  return 1
-}
-
-remote_pi_cli() {
-  local plugin_cli="$HOME/.omp/plugins/node_modules/remote-pi/dist/index.js"
-
-  if command -v remote-pi >/dev/null 2>&1; then
-    printf 'remote-pi\n'
-    return
-  fi
-  if [[ ! -f "$plugin_cli" ]]; then
-    return 1
-  fi
-  if command -v bun >/dev/null 2>&1; then
-    printf 'bun %s\n' "$plugin_cli"
-    return
-  fi
-  if command -v node >/dev/null 2>&1; then
-    printf 'node %s\n' "$plugin_cli"
-    return
-  fi
-
-  return 1
-}
-
 install_intercom_config() {
   local source_file="$repo_root/omp/intercom.json"
   local target_dir
@@ -455,85 +303,6 @@ install_intercom_config() {
   backup_if_changed "$source_file" "$target_file"
   install -m 0600 "$source_file" "$target_file"
   printf 'Installed pi-intercom configuration at %s\n' "$target_file"
-}
-
-install_remote_config() {
-  local relay_url
-  local target_dir
-  local target_file
-  local existing_relay
-  local remote_cli
-  local remote_runtime
-  local remote_script
-  local timestamp
-  local detect_status
-
-  detect_status=0
-  relay_url="$(detect_relay_url)" || detect_status=$?
-  # Status 2 means curl is missing, so no probe is possible at all.
-  # Never claim a successful install while remote-pi stays unconfigured.
-  if [[ "$detect_status" -eq 2 ]]; then
-    printf 'Install curl, then run this target again\n' >&2
-    return 1
-  fi
-  # Status 3 means Tailscale is missing. Warn, then continue.
-  if [[ "$detect_status" -eq 3 ]]; then
-    tailscale_install_hint
-    if [[ ! -f "$(remote_dir)/config.json" ]]; then
-      printf 'Until a relay is configured, remote-pi uses the public community relay\n' >&2
-    else
-      printf 'The existing remote-pi configuration is unchanged\n' >&2
-    fi
-    return 0
-  fi
-  if [[ "$detect_status" -ne 0 ]]; then
-    printf 'Cannot detect the remote-pi relay on local or Tailscale peers\n' >&2
-    # An absent configuration makes remote-pi fall back to the public
-    # community relay. Fail instead of accepting that silent substitution.
-    if [[ ! -f "$(remote_dir)/config.json" ]]; then
-      printf 'No relay is configured, so remote-pi would use the public community relay\n' >&2
-      printf 'Start the relay, then run this target again\n' >&2
-      return 1
-    fi
-    printf 'The existing remote-pi configuration is unchanged\n' >&2
-    return 0
-  fi
-
-  target_dir="$(remote_dir)"
-  target_file="$target_dir/config.json"
-  existing_relay=
-  if [[ -f "$target_file" ]]; then
-    existing_relay="$(
-      sed -n 's/.*"relay"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$target_file" |
-        sed -n '1p'
-    )"
-  fi
-  if [[ "$existing_relay" == "$relay_url" ]]; then
-    printf 'Remote-pi already uses relay %s; skipping configuration\n' "$relay_url"
-    return
-  fi
-
-  if ! remote_cli="$(remote_pi_cli)"; then
-    printf 'Cannot configure remote-pi for relay %s automatically\n' "$relay_url" >&2
-    printf 'Set it manually with: remote-pi set-relay %s\n' "$relay_url" >&2
-    return 0
-  fi
-
-  install -d -m 0700 "$target_dir"
-  if [[ -f "$target_file" ]]; then
-    timestamp="$(date +%Y%m%d-%H%M%S)"
-    cp "$target_file" "${target_file}.backup.${timestamp}"
-    printf 'Backed up %s\n' "$target_file"
-  fi
-
-  if [[ "$remote_cli" == "remote-pi" ]]; then
-    remote-pi set-relay "$relay_url"
-  else
-    remote_runtime="${remote_cli%% *}"
-    remote_script="${remote_cli#* }"
-    "$remote_runtime" "$remote_script" set-relay "$relay_url"
-  fi
-  printf 'Configured remote-pi relay at %s\n' "$relay_url"
 }
 
 install_git_hooks() {
@@ -590,133 +359,48 @@ install_intercom_plugin() {
   fi
 }
 
-# True when $1 is a version this installer can compare: exactly three numeric
-# components, as npm requires, then an optional prerelease tag and optional
-# build metadata, which may appear together as in `1.2.3-rc.1+local`.
-#
-# An abbreviated `99.0` is malformed, not a lenient spelling of `99.0.0`.
-# Accepting it would let a corrupt manifest outrank the floor and skip repair.
-version_is_valid() {
-  local pattern='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
-
-  [[ "$1" =~ $pattern ]]
-}
-
-# True when version $1 is at least version $2. Compares numeric components in
-# bash rather than with `sort -V`, which base macOS sort lacks.
-#
-# Anything unparseable answers false rather than being coerced into a number.
-# Stripping stray characters would read `9garbage.0.0` as 9.0.0 and let a
-# corrupt install pass for current, so a bad version always triggers repair.
-#
-# Prerelease handling is deliberately narrow, covering only the rule this
-# installer needs: a prerelease ranks below the release it precedes. Two
-# different prereleases of one release are treated as not satisfying each
-# other, which reinstalls the target instead of guessing an order. This is not
-# full semver precedence, which compares dot-separated tag identifiers.
-version_at_least() {
-  local -a left right
-  local i l r left_core right_core left_tag right_tag
-
-  version_is_valid "$1" || return 1
-  version_is_valid "$2" || return 1
-
-  # Build metadata carries no precedence in semver, so `0.7.0+local` and
-  # `0.7.0` are the same version. Discard it before anything else, or a local
-  # build would read as older than the release it was built from.
-  left_core="${1%%+*}"
-  right_core="${2%%+*}"
-
-  IFS='.' read -r -a left <<< "${left_core%%-*}"
-  IFS='.' read -r -a right <<< "${right_core%%-*}"
-  # Both arrays hold exactly three components; version_is_valid guarantees it.
-  for i in 0 1 2; do
-    l="${left[i]}"
-    r="${right[i]}"
-    if (( 10#$l > 10#$r )); then return 0; fi
-    if (( 10#$l < 10#$r )); then return 1; fi
-  done
-
-  left_tag="${left_core#"${left_core%%-*}"}"
-  right_tag="${right_core#"${right_core%%-*}"}"
-  if [[ -z "$left_tag" ]]; then return 0; fi
-  if [[ -z "$right_tag" ]]; then return 1; fi
-  [[ "$left_tag" == "$right_tag" ]]
-}
-
-installed_remote_pi_version() {
-  local manifest="$HOME/.omp/plugins/node_modules/remote-pi/package.json"
-
-  [[ -r "$manifest" ]] || return 0
-  sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" |
-    sed -n '1p'
-}
-
-# Latest published version, or empty when npm cannot answer or answers with
-# something that is not a version. Empty is not an error: a lookup failure is
-# captured here so `pipefail` cannot abort the whole installer offline, and an
-# unparseable answer is discarded so it can never reach `omp install` as a
-# package spec. Either way the caller holds at the floor.
-published_remote_pi_version() {
-  local latest
-
-  command -v npm >/dev/null 2>&1 || return 0
-  latest="$(npm view remote-pi version 2>/dev/null)" || return 0
-  latest="${latest//[[:space:]]/}"
-  version_is_valid "$latest" || return 0
-  printf '%s' "$latest"
-}
-
-install_remote_plugin() {
-  local plugin_list installed published target="$remote_pi_floor"
-
-  if ! command -v omp >/dev/null 2>&1; then
-    printf 'Cannot install remote-pi: omp is not on PATH\n' >&2
-    return 1
-  fi
-
-  published="$(published_remote_pi_version)"
-  if [[ -n "$published" ]] && version_at_least "$published" "$remote_pi_floor"; then
-    target="$published"
-  fi
-
-  plugin_list="$(omp plugin list 2>/dev/null || true)"
-  if [[ "$plugin_list" != *remote-pi* ]]; then
-    omp install "remote-pi@${target}"
-    return
-  fi
-
-  installed="$(installed_remote_pi_version)"
-  if [[ -z "$installed" ]]; then
-    printf 'Cannot verify the installed remote-pi version; installing %s\n' "$target"
-    omp install "remote-pi@${target}"
-    return
-  fi
-
-  # Covers a locally built version ahead of the registry, so a routine install
-  # never downgrades one.
-  if version_at_least "$installed" "$target"; then
-    printf 'remote-pi %s meets the %s floor; skipping plugin install\n' \
-      "$installed" "$remote_pi_floor"
-    return
-  fi
-
-  printf 'Updating remote-pi %s to %s (floor %s)\n' "$installed" "$target" "$remote_pi_floor"
-  omp install "remote-pi@${target}"
-}
-
 install_intercom() {
   install_intercom_plugin
   install_intercom_config
 }
 
-install_remote() {
-  install_remote_plugin
-  install_remote_config
+# The remote-pi plugin and its relay are no longer part of this setup. Remove a
+# leftover install so that an old machine converges on the current state.
+# The caller runs this function in an `if !` test, which disables `set -e`
+# inside it. Every step therefore checks its own status and returns 1 on
+# failure, so that no message reports a removal that did not happen.
+remove_remote_pi() {
+  local plugin_list
+  local config_dir="$HOME/.pi/remote"
+  local status=0
+
+  if command -v omp >/dev/null 2>&1; then
+    plugin_list="$(omp plugin list 2>/dev/null || true)"
+    if [[ "$plugin_list" == *remote-pi* ]]; then
+      if omp plugin uninstall remote-pi; then
+        printf 'Removed the deprecated remote-pi plugin\n'
+      else
+        printf 'Cannot uninstall the deprecated remote-pi plugin\n' >&2
+        status=1
+      fi
+    fi
+  fi
+
+  if [[ -e "$config_dir" ]]; then
+    if rm -rf -- "$config_dir"; then
+      printf 'Removed the deprecated remote-pi configuration at %s\n' "$config_dir"
+    else
+      printf 'Cannot remove the deprecated remote-pi configuration at %s\n' \
+        "$config_dir" >&2
+      status=1
+    fi
+  fi
+
+  return "$status"
 }
 
 usage() {
-  printf 'Usage: %s [all|hooks|omp|intercom|remote]\n' "${0##*/}"
+  printf 'Usage: %s [all|hooks|omp|intercom|cleanup]\n' "${0##*/}"
 }
 
 # Tests source this script to exercise single functions. Sourcing must define
@@ -728,16 +412,14 @@ fi
 case "${1:-all}" in
   all)
     install_git_hooks
+    # A stale remote-pi install must never survive a full run.
+    if ! remove_remote_pi; then
+      printf 'Continuing without removing the deprecated remote-pi install\n' >&2
+    fi
     install_omp
     # Plugin availability must not block repository hooks or tracked configuration.
     if ! install_intercom_plugin; then
       printf 'Continuing without the pi-intercom plugin\n' >&2
-    fi
-    if ! install_remote_plugin; then
-      printf 'Continuing without the remote-pi plugin\n' >&2
-    fi
-    if ! install_remote_config; then
-      printf 'Continuing without the remote-pi relay configuration\n' >&2
     fi
     ;;
   hooks)
@@ -749,8 +431,8 @@ case "${1:-all}" in
   intercom)
     install_intercom
     ;;
-  remote)
-    install_remote
+  cleanup)
+    remove_remote_pi
     ;;
   -h|--help)
     usage

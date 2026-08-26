@@ -11,7 +11,7 @@ files, session history, caches, logs, and machine-specific state remain local.
 | Directory | Purpose |
 | --- | --- |
 | [`.githooks/`](.githooks/) | Version-controlled safeguards for staged commits |
-| [`omp/`](omp/) | OMP settings, pi-intercom broker configuration, remote-pi relay discovery, minimal global context, MCP policy, installation, and rationale |
+| [`omp/`](omp/) | OMP settings, pi-intercom broker configuration, minimal global context, MCP policy, installation, and rationale |
 | [`xfce4/`](xfce4/) | Night Owl Xfce desktop assets, rationale, and undo contract |
 
 ## Install
@@ -24,11 +24,8 @@ cd dotfiles
 ./install.sh
 ```
 
-The plain `./install.sh` command runs the `all` target. It treats `remote-pi`
-0.7.0 as a minimum version, not a fixed one: it installs the newest published
-release, keeps an already newer install, and upgrades anything older. It also
-configures the relay. A relay problem prints a notice and never blocks the rest
-of the install.
+The plain `./install.sh` command runs the `all` target. The installer supports
+these targets: `all`, `hooks`, `omp`, `intercom`, and `cleanup`.
 
 Install only one configuration:
 
@@ -43,46 +40,20 @@ Install the `pi-intercom` npm plugin and provision its broker configuration
 ./install.sh intercom
 ```
 
-Run only the `remote-pi` installation and relay configuration:
-
-```bash
-./install.sh remote
-```
-
-The `remote` target supports Linux and macOS. It requires `curl` and uses
-Tailscale for relay discovery. On macOS, the installer also checks the Tailscale
-application bundle when `PATH` does not provide the CLI.
-
-Without `curl`, the installer cannot probe any relay. The `remote` target
-therefore fails.
-
-When the Tailscale CLI is absent, the installer detects the operating system
-with `uname`. It prints a warning that names the matching install command. The
-warning states that missing configuration makes `remote-pi` use the public
-community relay. The installer leaves the relay configuration unchanged. It
-continues successfully. It does not fail.
-
-On Linux, the warning prints this command:
-
-```bash
-curl -fsSL https://tailscale.com/install.sh | sh
-```
-
-On macOS, the warning prints the same script command. That script opens the Mac
-App Store page. The warning also names `brew install --cask tailscale` as an
-alternative.
-
-When Tailscale is present but no relay answers, the target checks for existing
-configuration. It keeps an existing file and continues successfully. If no file
-exists, the target fails.
-
-Without configuration, `remote-pi` would use the public community relay. The
-installer refuses this silent substitution.
-
 The `intercom` target is strict and fails when a prerequisite or the npm plugin
 install fails. The default `all` target installs the plugin when `omp` and `bun`
 are present, but warns and continues with hooks and tracked configuration when
 the plugin cannot be installed.
+
+Remove the deprecated `remote-pi` plugin and its configuration directory
+`$HOME/.pi/remote`:
+
+```bash
+./install.sh cleanup
+```
+
+The `all` target also runs this removal. The command changes nothing when
+neither the plugin nor the directory is present.
 
 Enable only the repository safeguards:
 
@@ -98,9 +69,7 @@ destination while destination-only mapping keys remain. `omp/intercom.json` is
 installed as `$HOME/.pi/agent/intercom/config.json`, or as
 `$PI_CODING_AGENT_DIR/intercom/config.json` when that variable is set. This is
 the pi-intercom runtime directory, not a path under `$HOME/.omp`. Existing
-managed files are backed up before a changed result replaces them. This
-repository does not store the relay URL. The installer discovers it at install
-time.
+managed files are backed up before a changed result replaces them.
 
 `install.sh` and the pre-commit hook run on Linux and on macOS. Both use only
 Bash 3.2 syntax and the tools that each base system provides, so the Bash 3.2

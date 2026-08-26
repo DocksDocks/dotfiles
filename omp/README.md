@@ -98,12 +98,8 @@ Ensure `$HOME/.local/bin` is on `PATH`.
 `curl` does not set the `com.apple.quarantine` attribute. macOS Gatekeeper
 therefore does not block the downloaded binary.
 
-The plain `./install.sh` command runs the `all` target. It treats `remote-pi`
-0.7.0 as a minimum version, not a fixed one: it installs the newest published
-release, keeps an already newer install, and upgrades anything older. When the
-version lookup fails, for example offline, it holds at the minimum instead of
-failing. It also configures the relay. A relay problem prints a notice and
-never blocks the rest of the install.
+The plain `./install.sh` command runs the `all` target. The installer supports
+these targets: `all`, `hooks`, `omp`, `intercom`, and `cleanup`.
 
 From the dotfiles repository root, install the tracked settings, minimal global
 context, MCP policy, and pi-intercom broker configuration with:
@@ -122,14 +118,17 @@ and provision the same broker configuration, run:
 The `intercom` target reaches the network for the plugin install. `bun` must be
 on `PATH` because it runs the broker.
 
-To run only the `remote-pi` installation and relay configuration, run:
+An earlier version of this configuration installed the `remote-pi` plugin. The
+`cleanup` target removes that plugin and its configuration directory
+`$HOME/.pi/remote`:
 
 ```bash
-./install.sh remote
+./install.sh cleanup
 ```
 
-The `remote` target discovers its relay automatically. It supports Linux and
-macOS. It requires `curl` and uses Tailscale for relay discovery.
+The `all` target also runs this removal, and it warns and continues when the
+removal fails. The command changes nothing when neither the plugin nor the
+directory is present.
 
 The installer handles the three tracked files under `~/.omp/agent/` as
 follows:
@@ -149,11 +148,6 @@ The separate `omp/intercom.json` is installed as
 extension keeps its runtime files under the Pi agent directory rather than
 under `$HOME/.omp`.
 
-The installer manages the global `remote-pi` relay configuration at
-`$HOME/.pi/remote/config.json`. Version 0.7.0 stores each session setup at
-`<cwd>/.pi/remote-pi/config.json`. `PI_CODING_AGENT_DIR` does not change either
-path.
-
 The resulting files are installed with mode `0600`, and `config.yml` is backed
 up only when the merged output changes the destination. Local runtime files such
 as `.env`, `agent.db`, `secrets.yml`, sessions, logs, and caches must not be
@@ -164,60 +158,6 @@ The standalone installer regression check can be run from the repository root:
 ```bash
 bash tests/install-omp.sh
 ```
-
-## Intent: automatic relay discovery
-
-A relay URL differs for each network. Users must not commit it to this public
-repository. The installer discovers the URL at install time.
-
-Each probe sends a `GET /health` request. The installer uses this discovery
-order:
-
-1. When `REMOTE_PI_RELAY` is set, the installer uses it.
-2. Otherwise, a relay answering at `http://127.0.0.1:3000` wins. This keeps
-   local sessions working when Tailscale is down.
-3. Otherwise, the installer probes every online Tailscale peer on port `3000`.
-   It uses the MagicDNS name of the first peer that answers.
-4. When Tailscale is present but no relay answers, the installer checks for
-   existing configuration. It keeps an existing file and continues
-   successfully. If no file exists, the target fails.
-
-Without configuration, `remote-pi` falls back to a public community relay. The
-installer refuses this silent substitution.
-
-The installer prefers loopback on the relay machine itself. This route avoids
-a Tailscale dependency for local sessions.
-
-The installer uses the raw address only when it cannot read the MagicDNS
-suffix. It prefers the MagicDNS name because it survives an address change.
-
-The installer supports Linux and macOS. The `remote` target requires `curl` and
-uses Tailscale. On macOS, the installer also checks the Tailscale application
-bundle when `PATH` does not provide the CLI. That bundle executable can start
-either the graphical application or the CLI. The installer therefore sets
-`TAILSCALE_BE_CLI=1`, which forces CLI mode and prevents a GUI launch.
-
-Without `curl`, the installer cannot probe any relay. The `remote` target
-therefore fails.
-
-When the Tailscale CLI is absent, the installer detects the operating system
-with `uname`. It prints a warning that names the matching install command. The
-warning states that missing configuration makes `remote-pi` use the public
-community relay. The installer leaves the relay configuration unchanged. It
-continues successfully. It does not fail.
-
-On Linux, the warning prints this command:
-
-```bash
-curl -fsSL https://tailscale.com/install.sh | sh
-```
-
-On macOS, the warning prints the same script command. That script opens the Mac
-App Store page. The warning also names `brew install --cask tailscale` as an
-alternative.
-
-The installer applies the URL through `remote-pi set-relay`. This command merges
-the configuration and keeps unrelated keys.
 
 ## Intent: model and reasoning depth per role
 
@@ -940,10 +880,9 @@ Operational constraints:
   transport.
 
 No public report was found of anyone else running pi-intercom under OMP. GitHub
-API searches across the OMP, pi-intercom, and remote_pi repositories found no
-mention, and a broad web search found nothing indexed. The extension declares
-no OMP version floor, so a future OMP release could break this compatibility
-without warning.
+API searches across the OMP and pi-intercom repositories found no mention, and
+a broad web search found nothing indexed. The extension declares no OMP version
+floor, so a future OMP release could break this compatibility without warning.
 
 Alternatives were evaluated before adopting this extension. OMP provides no
 native mechanism. Its `hub` messaging is in-process, `omp acp` serves ACP over
@@ -972,45 +911,8 @@ was also delivered to the peer three times. Two further costs: with `NATS_URL`
 unset it connects to the public `demo.nats.io` and forks a `sesh` process, and
 its key-value and object buckets need JetStream, so core NATS is not enough.
 
-The remaining four candidates were installed and executed, not only read.
-Installed [`remote-pi`](https://github.com/jacobaraujo7/remote_pi) 0.7.0 meets
-all three requirements. It registers `agent_send`, `agent_request`, and
-`list_peers`. The bare `/remote-pi` command runs the setup wizard when the
-current folder has no local configuration. No `/remote-pi join` command is
-registered. For a configured folder, `/remote-pi` always joins the local mesh.
-
-It starts the relay only when the local configuration enables relay auto-start.
-An interactive session also connects automatically at startup when relay
-auto-start is enabled.
-
-Relay use costs confidentiality. Version 0.7.0 sends base64-encoded JSON without
-encryption or a message authentication code. A relay operator can therefore see
-routed plaintext.
-
-Running `jacobmoura7/remote-pi-relay` under `docker run` and pointing the
-extension at it removes that operator from the trust path. Both
-`/remote-pi set-relay <url>` and `/remote-pi relay url <url>` persist a new relay
-URL. Run `/remote-pi relay stop`. Then run `/remote-pi relay start` to apply it.
-The stop command disconnects the relay and leaves the local mesh connected.
-
-`/remote-pi relay status` prints the status panel. `/remote-pi config` prints
-the effective relay URL and its source.
-
-Contrast `/collab`, which seals every payload with AES-256-GCM before the
-socket, so its relay sees only ciphertext, room ids, and frame sizes.
-
-Peers are addressed as `<cwd>@<name>`, so addressing
-crosses projects by construction. Its `agent_request` returned the peer's answer
-as the tool result. That was proven with a fact the sender could not hold: the
-peer's working directory. Its own README, however, offers `agent_request` "only
-as deprecated legacy behavior". The supported call is `agent_send`, which waits
-for a delivery acknowledgement of `received`, `denied`, or `timeout`, and content
-replies then arrive asynchronously through `re`. So the supported path is the
-acknowledgement-only shape, and the correlated reply survives on a deprecated
-one. `pi-intercom` remains the tracked choice for that reason, and because it
-needs no per-session join and no relay decision.
-
-The other three do not run here.
+Three other candidates were installed and executed, not only read. None runs
+here.
 [`pi-messenger`](https://github.com/nicobailon/pi-messenger) imports `typebox`
 without declaring it as a dependency. OMP fails to load it with `Sj(A).or is not
 a function`, so its skills load while its tool never registers.
