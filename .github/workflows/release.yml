@@ -1,0 +1,124 @@
+# Build and publish a release when a version tag (vMAJOR.MINOR.PATCH) is
+# pushed. The assets are the rendered bootstrap (install.sh), the source
+# archive that git archive makes from the tag, and SHA256SUMS for both files.
+# Each asset gets a signed build provenance attestation.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Build and publish the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check the tag format
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf '::error::The tag must have the format vMAJOR.MINOR.PATCH; found %s\n' "$TAG"
+            exit 1
+          fi
+
+      - name: Check out the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check that main contains the tag commit
+        run: |
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          tag_commit="$(git rev-parse --verify "refs/tags/$TAG^{commit}")"
+          head_commit="$(git rev-parse --verify 'HEAD^{commit}')"
+          if [ "$tag_commit" != "$head_commit" ]; then
+            printf '::error::The checkout (%s) is not the tag commit (%s)\n' "$head_commit" "$tag_commit"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$tag_commit" refs/remotes/origin/main; then
+            printf '::error::The commit of tag %s (%s) is not on the main branch\n' "$TAG" "$tag_commit"
+            exit 1
+          fi
+
+      - name: Lint the scripts
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+          fi
+          shellcheck --version
+          shellcheck -x install.sh lib/*.sh lib/os/*.sh lib/tools/*.sh tests/*.sh release/bootstrap.sh
+          shellcheck -s sh shell/*.sh
+
+      - name: Run the tests
+        run: |
+          bash tests/shell-profile.sh
+          bash tests/install-dry-run.sh
+          bash tests/bootstrap.sh
+
+      - name: Build the release assets
+        run: |
+          archive="dotfiles-$TAG.tar.gz"
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="dotfiles-$TAG/" --output="dist/$archive" "refs/tags/$TAG"
+          sha="$(sha256sum "dist/$archive" | cut -d ' ' -f 1)"
+          if ! [[ "$sha" =~ ^[0-9a-f]{64}$ ]]; then
+            printf '::error::The SHA-256 of %s is not valid: %s\n' "$archive" "$sha"
+            exit 1
+          fi
+          sed -e "s/@DOTFILES_TAG@/$TAG/g" -e "s/@DOTFILES_SHA256@/$sha/g" \
+            release/bootstrap.sh >dist/install.sh
+          if grep -n '@DOTFILES_' dist/install.sh; then
+            printf '::error::A placeholder is still in dist/install.sh\n'
+            exit 1
+          fi
+          if ! grep -Fq "$sha" dist/install.sh || ! grep -Fq "$TAG" dist/install.sh; then
+            printf '::error::dist/install.sh does not contain the tag and the SHA-256\n'
+            exit 1
+          fi
+          bash -n dist/install.sh
+          (
+            cd dist
+            sha256sum "$archive" install.sh >SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - name: Attest the build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/install.sh
+            dist/dotfiles-v*.tar.gz
+            dist/SHA256SUMS
+
+      # With assets, gh release create makes a draft, uploads the assets, and
+      # then publishes the draft. Thus immutable releases get all assets.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh --version
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "$TAG" \
+            --generate-notes \
+            dist/install.sh "dist/dotfiles-$TAG.tar.gz" dist/SHA256SUMS
