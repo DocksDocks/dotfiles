@@ -154,20 +154,36 @@ confirm() {
   esac
 }
 
-# Start the workflow and print the id of the new run. Recent gh versions
-# print the run URL; older ones print nothing, so the newest dispatch run of
-# the commit is the fallback.
-dispatch() {
-  local version="$1" commit="$2" output run_id try
+# Print the ids of the dispatch runs of the commit, one per line.
+dispatch_run_ids() {
+  gh run list --workflow "$WORKFLOW" --event workflow_dispatch --commit "$1" \
+    --limit 50 --json databaseId --jq '.[].databaseId'
+}
 
+# Start the workflow and print the id of the new run. Recent gh versions
+# print the run URL. Older ones print nothing; then the new run is the dispatch
+# run of the commit that did not exist before, so a failed earlier run of the
+# same commit is never picked.
+dispatch() {
+  local version="$1" commit="$2" before output run_id id try
+
+  before=" $(dispatch_run_ids "$commit" | tr '\n' ' ')" ||
+    die 'cannot list the earlier runs of the workflow'
   output="$(gh workflow run "$WORKFLOW" --ref "$BRANCH" -f "version=$version")" ||
     die 'gh workflow run failed'
   run_id="$(printf '%s\n' "$output" | sed -n 's#.*/actions/runs/\([0-9][0-9]*\).*#\1#p' | head -n 1)"
   try=0
   while [ -z "$run_id" ] && [ "$try" -lt 10 ]; do
     sleep 3
-    run_id="$(gh run list --workflow "$WORKFLOW" --event workflow_dispatch \
-      --commit "$commit" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+    for id in $(dispatch_run_ids "$commit" || true); do
+      case "$before" in
+        *" $id "*) ;;
+        *)
+          run_id="$id"
+          break
+          ;;
+      esac
+    done
     try=$((try + 1))
   done
   [ -n "$run_id" ] || die "the workflow started, but its run was not found; see: gh run list --workflow $WORKFLOW"
