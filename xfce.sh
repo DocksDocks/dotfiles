@@ -1113,8 +1113,9 @@ install_tilix() {
   done
   if [[ -z "$vte_script" ]]; then
     warn "No VTE profile script found -- skipping Tilix shell integration."
-  elif grep -q 'TILIX_ID' "$HOME/.bashrc" 2>/dev/null; then
-    log "VTE shell integration already present in ~/.bashrc."
+  elif grep -qs 'TILIX_ID' "$HOME/.bashrc" "$HOME/.docks_profile"; then
+    # ~/.docks_profile (install.sh shell) also loads the VTE script.
+    log "VTE shell integration already present in ~/.bashrc or ~/.docks_profile."
   else
     # Fenced with markers so `revert` can remove exactly this block and
     # nothing else -- an unfenced append would be unremovable without
