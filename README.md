@@ -94,6 +94,7 @@ check also finds a file that the release workflow did not make.
 | [`shell/`](shell/) | Shared interactive shell profile, with Linux and macOS parts |
 | [`.githooks/`](.githooks/) | Version-controlled safeguards for staged commits |
 | [`release/bootstrap.sh`](release/bootstrap.sh) | Template of the one-line installer that each release publishes as `install.sh` |
+| [`release.sh`](release.sh) | Starts the manual release workflow for the next version |
 | [`.github/workflows/release.yml`](.github/workflows/release.yml) | Manual release workflow: tests, builds, attests, and publishes the release assets |
 | [`.github/dependabot.yml`](.github/dependabot.yml) | Weekly updates of the pinned GitHub Actions |
 | [`xfce4/`](xfce4/) | Night Owl Xfce desktop assets, rationale, and undo contract |
@@ -388,15 +389,25 @@ Stage explicit paths instead of using `git add .`.
 
 ## Releases
 
-Only a person starts a release. Push the commits to `main` first, then run the
-[`Release`](.github/workflows/release.yml) workflow on `main`, either from the
-Actions tab (**Release → Run workflow**, version `vX.Y.Z`) or with the GitHub
-CLI:
+Only a person starts a release. Push the commits to `main` first, then run
+[`release.sh`](release.sh) from the clone:
 
 ```bash
-gh workflow run release.yml --ref main -f version=vX.Y.Z
-gh run watch
+./release.sh --dry-run        # show the next version, start nothing
+./release.sh                  # next patch version: v1.2.3 -> v1.2.4
+./release.sh minor            # v1.2.3 -> v1.3.0 (also: major, or vX.Y.Z)
 ```
+
+The script needs the GitHub CLI (`gh auth login`). It stops when the clone is
+not on `main`, has uncommitted changes, or differs from `origin/main`, because
+the release is built from the commit on GitHub. It reads the latest `vX.Y.Z`
+tag, asks for a confirmation (`--yes` skips it), starts the
+[`Release`](.github/workflows/release.yml) workflow, follows the run, and
+prints the release URL. It never creates or pushes a tag itself.
+
+Without the script, start the workflow from the Actions tab
+(**Release → Run workflow**) or with
+`gh workflow run release.yml --ref main -f version=vX.Y.Z`.
 
 The workflow has two jobs:
 

@@ -57,6 +57,7 @@ targeted `# shellcheck disable=SCxxxx` comment needs a one-line reason.
 
 - A person starts every release: `.github/workflows/release.yml` has only the
   `workflow_dispatch` trigger. Do not add a push, tag, or schedule trigger.
+  `release.sh` only starts that workflow; it never creates or pushes a tag.
 - Never move or delete a published tag. The `install.sh` asset of a release
   contains the SHA-256 of its archive. To fix a release, publish a new version.
 - The build job keeps read-only permissions. Only the publish job has write

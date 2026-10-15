@@ -1,5 +1,5 @@
 # Build and publish a release. Only a person starts this workflow, from the
-# main branch: Actions > Release > Run workflow, or
+# main branch: ./release.sh, Actions > Release > Run workflow, or
 #   gh workflow run release.yml --ref main -f version=vX.Y.Z
 #
 # The build job has read-only access. It lints and tests the commit, then
@@ -68,7 +68,7 @@ jobs:
             sudo apt-get install -y shellcheck
           fi
           shellcheck --version
-          shellcheck -x install.sh lib/*.sh lib/os/*.sh lib/tools/*.sh tests/*.sh release/bootstrap.sh
+          shellcheck -x install.sh release.sh lib/*.sh lib/os/*.sh lib/tools/*.sh tests/*.sh release/bootstrap.sh
           shellcheck -s sh shell/*.sh
 
       - name: Run the tests
