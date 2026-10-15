@@ -55,14 +55,20 @@ targeted `# shellcheck disable=SCxxxx` comment needs a one-line reason.
 
 `README.md` (sections Installation and Releases) describes the release flow.
 
+- A person starts every release: `.github/workflows/release.yml` has only the
+  `workflow_dispatch` trigger. Do not add a push, tag, or schedule trigger.
 - Never move or delete a published tag. The `install.sh` asset of a release
-  contains the SHA-256 of its archive. To fix a release, publish a new tag.
+  contains the SHA-256 of its archive. To fix a release, publish a new version.
+- The build job keeps read-only permissions. Only the publish job has write
+  permissions, and it runs no repository code.
 - `release/bootstrap.sh` must keep the SHA-256 check: it never unpacks or runs
   an archive whose SHA-256 is different from the embedded value. It downloads
   only over HTTPS (the `DOTFILES_RELEASE_URL` test seam also accepts a
   `file://` URL), never from a branch, and never uses `rm` or `mv`.
 - Every action in `.github/workflows/` stays pinned to a full commit SHA, with
-  the version in a comment. Keep the `permissions` to the minimum.
+  the version in a comment. Dependabot updates the pins. Keep the
+  `permissions` to the minimum, and pass inputs to `run:` steps only through
+  `env:`.
 - Run `tests/bootstrap.sh` after a change to `release/bootstrap.sh` or to the
   layout of the repository.
 

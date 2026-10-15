@@ -1,18 +1,27 @@
-# Build and publish a release when a version tag (vMAJOR.MINOR.PATCH) is
-# pushed. The assets are the rendered bootstrap (install.sh), the source
-# archive that git archive makes from the tag, and SHA256SUMS for both files.
-# Each asset gets a signed build provenance attestation.
+# Build and publish a release. Only a person starts this workflow, from the
+# main branch: Actions > Release > Run workflow, or
+#   gh workflow run release.yml --ref main -f version=vX.Y.Z
+#
+# The build job has read-only access. It lints and tests the commit, then
+# builds the assets: the source archive that git archive makes, the rendered
+# bootstrap (install.sh) with the SHA-256 of that archive, and SHA256SUMS.
+# The publish job has the write permissions and runs no repository code: it
+# checks the assets, attests their build provenance, creates the tag on the
+# tested commit, and publishes the release.
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 defaults:
@@ -20,41 +29,35 @@ defaults:
     shell: bash
 
 jobs:
-  release:
-    name: Build and publish the release
+  build:
+    name: Test and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: read
     env:
-      TAG: ${{ github.ref_name }}
+      VERSION: ${{ inputs.version }}
     steps:
-      - name: Check the tag format
+      - name: Check the version and the branch
         run: |
-          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            printf '::error::The tag must have the format vMAJOR.MINOR.PATCH; found %s\n' "$TAG"
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf '::error::The version must have the format vMAJOR.MINOR.PATCH; found %s\n' "$VERSION"
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            printf '::error::Run this workflow from the main branch; found %s\n' "$GITHUB_REF"
             exit 1
           fi
 
-      - name: Check out the tag
+      - name: Check out the commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Check that main contains the tag commit
+      - name: Check that the tag does not exist
         run: |
-          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
-          tag_commit="$(git rev-parse --verify "refs/tags/$TAG^{commit}")"
-          head_commit="$(git rev-parse --verify 'HEAD^{commit}')"
-          if [ "$tag_commit" != "$head_commit" ]; then
-            printf '::error::The checkout (%s) is not the tag commit (%s)\n' "$head_commit" "$tag_commit"
-            exit 1
-          fi
-          if ! git merge-base --is-ancestor "$tag_commit" refs/remotes/origin/main; then
-            printf '::error::The commit of tag %s (%s) is not on the main branch\n' "$TAG" "$tag_commit"
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null; then
+            printf '::error::The tag %s exists. A published tag never moves; choose a new version.\n' "$VERSION"
             exit 1
           fi
 
@@ -76,22 +79,22 @@ jobs:
 
       - name: Build the release assets
         run: |
-          archive="dotfiles-$TAG.tar.gz"
+          archive="dotfiles-$VERSION.tar.gz"
           mkdir -p dist
-          git archive --format=tar.gz --prefix="dotfiles-$TAG/" --output="dist/$archive" "refs/tags/$TAG"
+          git archive --format=tar.gz --prefix="dotfiles-$VERSION/" --output="dist/$archive" "$GITHUB_SHA"
           sha="$(sha256sum "dist/$archive" | cut -d ' ' -f 1)"
           if ! [[ "$sha" =~ ^[0-9a-f]{64}$ ]]; then
             printf '::error::The SHA-256 of %s is not valid: %s\n' "$archive" "$sha"
             exit 1
           fi
-          sed -e "s/@DOTFILES_TAG@/$TAG/g" -e "s/@DOTFILES_SHA256@/$sha/g" \
+          sed -e "s/@DOTFILES_TAG@/$VERSION/g" -e "s/@DOTFILES_SHA256@/$sha/g" \
             release/bootstrap.sh >dist/install.sh
           if grep -n '@DOTFILES_' dist/install.sh; then
             printf '::error::A placeholder is still in dist/install.sh\n'
             exit 1
           fi
-          if ! grep -Fq "$sha" dist/install.sh || ! grep -Fq "$TAG" dist/install.sh; then
-            printf '::error::dist/install.sh does not contain the tag and the SHA-256\n'
+          if ! grep -Fq "$sha" dist/install.sh || ! grep -Fq "$VERSION" dist/install.sh; then
+            printf '::error::dist/install.sh does not contain the version and the SHA-256\n'
             exit 1
           fi
           bash -n dist/install.sh
@@ -101,6 +104,44 @@ jobs:
             sha256sum -c SHA256SUMS
           )
 
+      - name: Keep the assets for the publish job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Attest and publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Settings > Environments > release can require a reviewer and limit the
+    # environment to the main branch.
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Get the assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: dist
+
+      - name: Check the assets
+        run: |
+          cd dist
+          sha256sum -c SHA256SUMS
+          test -f install.sh
+          test -f "dotfiles-$VERSION.tar.gz"
+
       - name: Attest the build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -109,16 +150,20 @@ jobs:
             dist/dotfiles-v*.tar.gz
             dist/SHA256SUMS
 
-      # With assets, gh release create makes a draft, uploads the assets, and
-      # then publishes the draft. Thus immutable releases get all assets.
+      # The tag must still be free: a tag made after the build job would point
+      # to another commit than the archive. With assets, gh release create
+      # makes a draft, uploads the assets, and then publishes the draft, which
+      # also creates the tag on the tested commit. Thus immutable releases get
+      # all assets.
       - name: Publish the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
         run: |
+          if gh api "repos/$GH_REPO/git/ref/tags/$VERSION" >/dev/null 2>&1; then
+            printf '::error::The tag %s appeared after the build; nothing was published.\n' "$VERSION"
+            exit 1
+          fi
           gh --version
-          gh release create "$TAG" \
-            --verify-tag \
-            --title "$TAG" \
+          gh release create "$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
             --generate-notes \
-            dist/install.sh "dist/dotfiles-$TAG.tar.gz" dist/SHA256SUMS
+            dist/install.sh "dist/dotfiles-$VERSION.tar.gz" dist/SHA256SUMS

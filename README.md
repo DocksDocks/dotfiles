@@ -94,7 +94,8 @@ check also finds a file that the release workflow did not make.
 | [`shell/`](shell/) | Shared interactive shell profile, with Linux and macOS parts |
 | [`.githooks/`](.githooks/) | Version-controlled safeguards for staged commits |
 | [`release/bootstrap.sh`](release/bootstrap.sh) | Template of the one-line installer that each release publishes as `install.sh` |
-| [`.github/workflows/release.yml`](.github/workflows/release.yml) | Release workflow: builds, attests, and publishes the release assets |
+| [`.github/workflows/release.yml`](.github/workflows/release.yml) | Manual release workflow: tests, builds, attests, and publishes the release assets |
+| [`.github/dependabot.yml`](.github/dependabot.yml) | Weekly updates of the pinned GitHub Actions |
 | [`xfce4/`](xfce4/) | Night Owl Xfce desktop assets, rationale, and undo contract |
 | [`xfce.sh`](xfce.sh) | Separate Xfce desktop tool |
 
@@ -387,25 +388,41 @@ Stage explicit paths instead of using `git add .`.
 
 ## Releases
 
-To make a release, push a version tag of a commit on `main`:
+Only a person starts a release. Push the commits to `main` first, then run the
+[`Release`](.github/workflows/release.yml) workflow on `main`, either from the
+Actions tab (**Release → Run workflow**, version `vX.Y.Z`) or with the GitHub
+CLI:
 
 ```bash
-git tag vX.Y.Z && git push origin vX.Y.Z
+gh workflow run release.yml --ref main -f version=vX.Y.Z
+gh run watch
 ```
 
-The tag push starts
-[`.github/workflows/release.yml`](.github/workflows/release.yml). The workflow:
+The workflow has two jobs:
 
-1. accepts only a `vMAJOR.MINOR.PATCH` tag whose commit is on `main`;
-2. runs shellcheck and the [tests](#tests);
-3. makes `dotfiles-<tag>.tar.gz` with `git archive` from the tag (not the
-   source archive that GitHub generates, because its bytes can change);
-4. puts the tag and the SHA-256 of the archive into
-   [`release/bootstrap.sh`](release/bootstrap.sh) and saves the result as
-   `install.sh`;
-5. writes `SHA256SUMS` for `install.sh` and the archive;
-6. makes a build provenance attestation for each of the three files;
-7. publishes the release `vX.Y.Z` with the three files as assets.
+1. **Test and build** has read-only access. It:
+   1. accepts only a `vMAJOR.MINOR.PATCH` version, a run on `main`, and a
+      version whose tag does not exist yet;
+   2. runs shellcheck and the [tests](#tests);
+   3. makes `dotfiles-<version>.tar.gz` with `git archive` from the tested
+      commit (not the source archive that GitHub generates, because its bytes
+      can change);
+   4. puts the version and the SHA-256 of the archive into
+      [`release/bootstrap.sh`](release/bootstrap.sh) and saves the result as
+      `install.sh`;
+   5. writes `SHA256SUMS` for `install.sh` and the archive.
+2. **Attest and publish** has the write permissions and runs no repository
+   code. It checks the assets against `SHA256SUMS`, makes a build provenance
+   attestation for each of the three files, creates the tag on the tested
+   commit, and publishes the release with the three files as assets.
+
+The publish job uses the environment `release`. In Settings → Environments →
+`release`, you can require a reviewer before each release and limit the
+environment to the `main` branch.
+
+Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) opens a weekly
+pull request when a pinned action has a new version. It updates the commit SHA
+and the version comment together.
 
 Enable immutable releases in the repository settings: Settings, section
 "Releases", **Enable release immutability**. Then nobody can change the assets
