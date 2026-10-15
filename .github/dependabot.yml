@@ -1,0 +1,12 @@
+# Dependabot keeps the commit-SHA pins of the GitHub Actions current. It
+# updates the SHA and the version comment together in one pull request.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - '*'
