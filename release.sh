@@ -190,6 +190,36 @@ dispatch() {
   printf '%s\n' "$run_id"
 }
 
+# A new run has no jobs for a few seconds. In that time "gh run watch" fails
+# with HTTP 404, so wait until the run lists its first job.
+wait_for_jobs() {
+  local run_id="$1" jobs try=0
+
+  while :; do
+    jobs="$(gh run view "$run_id" --json jobs --jq '.jobs | length' 2>/dev/null)" || jobs=0
+    [ "${jobs:-0}" -gt 0 ] && return 0
+    try=$((try + 1))
+    [ "$try" -lt 20 ] || die "run $run_id has no jobs after 60 seconds; see: gh run view $run_id"
+    sleep 3
+  done
+}
+
+# Follow the run until it ends. When "gh run watch" fails, the run state
+# decides: a failed watch does not always mean a failed run.
+watch_run() {
+  local run_id="$1" state
+
+  wait_for_jobs "$run_id"
+  gh run watch "$run_id" --exit-status --compact && return 0
+  state="$(gh run view "$run_id" --json status,conclusion --jq '.status + " " + .conclusion')" ||
+    die "cannot read the state of run $run_id; see: gh run view $run_id"
+  case "$state" in
+    'completed success') return 0 ;;
+    completed*) die "the release workflow failed; see: gh run view $run_id --log-failed" ;;
+    *) die "the run continues, but following it failed; see: gh run watch $run_id" ;;
+  esac
+}
+
 main() {
   local latest version commit run_id
 
@@ -211,9 +241,7 @@ main() {
 
   run_id="$(dispatch "$version" "$commit")"
   log "Workflow run: $run_id"
-  if ! gh run watch "$run_id" --exit-status --compact; then
-    die "the release workflow failed; see: gh run view $run_id --log-failed"
-  fi
+  watch_run "$run_id"
   log "Released $version: $(gh release view "$version" --json url --jq .url)"
 }
 
