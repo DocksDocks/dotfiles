@@ -240,11 +240,28 @@ test_tern_hint() {
   expect_no_output 'stencil.so' "$name (Tern present)"
 }
 
+# omp installs only as the official binary. A bun global omp, also on PATH,
+# does not count as present, so the installer plans the binary install.
+test_omp_binary() {
+  local name='omp binary'
+
+  new_case omp
+  mkdir -p "$case_home/.bun/bin"
+  printf '#!/bin/sh\nexit 0\n' >"$case_home/.bun/bin/omp"
+  chmod +x "$case_home/.bun/bin/omp"
+  run_installer DOTFILES_OS=ubuntu "PATH=$case_home/.bun/bin:$case_bin:/usr/bin:/bin" \
+    --dry-run packages omp
+  expect_status 0 "$name"
+  expect_output 'omp-install.sh --binary' "$name"
+  expect_no_output 'BUN_INSTALL=' "$name"
+}
+
 test_ubuntu_all
 test_macos_arm64
 test_macos_intel_without_brew
 test_guards
 test_tern_hint
+test_omp_binary
 
 printf 'Work directory (kept, not deleted): %s\n' "$work"
 if [ "$failures" -ne 0 ]; then

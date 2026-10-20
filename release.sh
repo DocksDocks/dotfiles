@@ -205,19 +205,24 @@ wait_for_jobs() {
 }
 
 # Follow the run until it ends. When "gh run watch" fails, the run state
-# decides: a failed watch does not always mean a failed run.
+# decides: a failed watch does not always mean a failed run. While the run
+# continues, the watch starts again, at most 5 times.
 watch_run() {
-  local run_id="$1" state
+  local run_id="$1" state try=0
 
   wait_for_jobs "$run_id"
-  gh run watch "$run_id" --exit-status --compact && return 0
-  state="$(gh run view "$run_id" --json status,conclusion --jq '.status + " " + .conclusion')" ||
-    die "cannot read the state of run $run_id; see: gh run view $run_id"
-  case "$state" in
-    'completed success') return 0 ;;
-    completed*) die "the release workflow failed; see: gh run view $run_id --log-failed" ;;
-    *) die "the run continues, but following it failed; see: gh run watch $run_id" ;;
-  esac
+  while :; do
+    gh run watch "$run_id" --exit-status --compact && return 0
+    state="$(gh run view "$run_id" --json status,conclusion --jq '.status + " " + .conclusion')" ||
+      state=unknown
+    case "$state" in
+      'completed success') return 0 ;;
+      completed*) die "the release workflow failed; see: gh run view $run_id --log-failed" ;;
+    esac
+    try=$((try + 1))
+    [ "$try" -lt 5 ] || die "following run $run_id failed 5 times; see: gh run watch $run_id"
+    sleep 5
+  done
 }
 
 main() {
