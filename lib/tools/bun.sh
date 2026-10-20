@@ -18,7 +18,7 @@ bun_cmd() {
 }
 
 # Put the user bun directory on PATH for this run when bun exists. Global bun
-# packages (docks-kit, omp) also go into this directory.
+# packages (docks-kit) also go into this directory.
 bun_path_add() {
   if [ -x "$(bun_dir)/bin/bun" ]; then
     path_prepend "$(bun_dir)/bin"

@@ -2,8 +2,8 @@
 # Tools: uv (standalone installer) and the newest stable CPython through uv.
 # Cross-OS. The functions use USER_HOME, never HOME.
 
-# The user binary directory. uv, the uv Python links, omp (binary mode), and
-# Composer go here.
+# The user binary directory. uv, the uv Python links, omp, and Composer go
+# here.
 local_bin_dir() {
   printf '%s\n' "$USER_HOME/.local/bin"
 }

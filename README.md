@@ -203,7 +203,7 @@ apply to that platform.
 | `bun` | tool `bun` | tool `bun` | Official installer, into `~/.bun` |
 | `pnpm` | tool `pnpm` | tool `pnpm` | Official installer, into `PNPM_HOME` |
 | `pnpm-store` | tool `pnpm_store` | tool `pnpm_store` | Sets the pnpm global virtual store |
-| `omp` | tool `omp` | tool `omp` | Official installer |
+| `omp` | tool `omp` | tool `omp` | Official installer in binary mode (`--binary`), into `~/.local/bin`. Never through bun |
 | `docks-kit` | tool `docks_kit` | tool `docks_kit` | `bun install -g docks-kit` |
 | `docks-kit-sync` | tool `docks_kit_sync` | tool `docks_kit_sync` | Runs `docks-kit sync omp` on every run |
 | `docker` | apt repository `docker` | cask `docker-desktop` | Ubuntu: Docker Engine for rootless mode. macOS: Docker Desktop |
